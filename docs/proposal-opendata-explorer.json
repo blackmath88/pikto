@@ -1,0 +1,43 @@
+{
+  "title": "Icon proposal: opendata-explorer",
+  "font": "Inter, system-ui, sans-serif",
+  "roles": [
+    {
+      "role": "Side rail",
+      "note": "rail-icon: 18px glyph in a 48×48 hit target. Discover shown in its active state.",
+      "context": { "size": 18, "box": 48, "radius": 8, "color": "#414944", "background": "var(--panel)" },
+      "items": [
+        { "meaning": "discover", "today": "⌕", "candidates": ["ph:magnifying-glass", "lucide:search"], "reading": "Search is the literal action.", "context": { "color": "#a0d1ba", "background": "var(--primary2)" } },
+        { "meaning": "build", "today": "⌘", "candidates": ["ph:stack", "ph:blueprint", "lucide:layers"], "reading": "Composing layers of evidence, not the Mac Command key." },
+        { "meaning": "materialize", "today": "▣", "candidates": ["ph:cube", "lucide:box"], "reading": "The plan becomes a concrete object." },
+        { "meaning": "legend", "today": "?", "candidates": ["ph:info", "ph:question"], "reading": "Explanation of the provenance tags, not a question." }
+      ]
+    },
+    {
+      "role": "Evidence status",
+      "frame": true,
+      "note": "One circle family: every state shares the frame and differs only in its inner mark. Colours are the .source-state / .claim-* tones.",
+      "context": { "size": 16, "box": 28, "radius": 6, "color": "var(--muted)", "background": "var(--panel)" },
+      "items": [
+        { "meaning": "confirmed / covered / selected", "today": "✓", "candidates": ["ph:check-circle", "lucide:circle-check"], "context": { "color": "var(--primary2)" } },
+        { "meaning": "partial", "today": "△", "candidates": ["ph:circle-half", "lucide:circle-dot-dashed"], "reading": "Half-covered, if that is what partial means.", "context": { "color": "var(--warn)" } },
+        { "meaning": "available", "today": "○ / △", "candidates": ["ph:circle-dashed", "lucide:circle-dashed"], "reading": "There, but not yet taken up.", "context": { "color": "var(--warn)" } },
+        { "meaning": "rejected / missing", "today": "✕", "candidates": ["ph:x-circle", "lucide:circle-x"], "context": { "color": "var(--danger)" } },
+        { "meaning": "unresolved", "today": "?", "candidates": ["ph:question", "lucide:circle-help"], "context": { "color": "var(--muted)" } }
+      ]
+    },
+    {
+      "role": "Links",
+      "context": { "size": 14, "box": 24, "radius": 4, "color": "var(--primary2)", "background": "var(--surface)" },
+      "items": [
+        { "meaning": "external", "today": "↗", "candidates": ["ph:arrow-up-right", "lucide:arrow-up-right"] },
+        { "meaning": "range / next", "today": "→", "candidates": ["ph:arrow-right", "lucide:arrow-right"] }
+      ]
+    }
+  ],
+  "questions": [
+    "Is \"partial\" really half-covered? If so, circle-half; otherwise dot-dashed.",
+    "Is \"available\" the same state as \"partial\"? Today main.ts draws both as △.",
+    "Build as stack (layers of evidence) or blueprint (a plan)?"
+  ]
+}

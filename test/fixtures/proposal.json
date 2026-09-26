@@ -1,0 +1,9 @@
+{ "roles": [
+  { "role": "rail", "context": { "size": 18, "box": 48, "color": "var(--primary)" },
+    "items": [ { "meaning": "discover", "today": "⌕", "candidates": ["ph:magnifying-glass", "lucide:search", "ph:does-not-exist"] } ] },
+  { "role": "status", "frame": true, "context": { "size": 16, "color": "var(--warn)" },
+    "items": [
+      { "meaning": "confirmed", "today": "✓", "candidates": ["ph:check-circle"] },
+      { "meaning": "rejected", "today": "✕", "candidates": ["ph:x-circle"] },
+      { "meaning": "available", "today": "○", "candidates": ["ph:circle-dashed"] },
+      { "meaning": "unresolved", "today": "?", "candidates": ["ph:question"] } ] } ] }

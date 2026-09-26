@@ -4,6 +4,9 @@
 // Deterministic only. The calling agent (LLM) decides WHERE an icon is needed and WHICH concept/candidate to use.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import svgpath from 'svgpath';
 import { optimize } from 'svgo';
 import { Resvg } from '@resvg/resvg-js';
@@ -33,8 +36,74 @@ function walk(dir, out = []) {
   }
   return out;
 }
-async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${url}`); return r.json(); }
 const args = process.argv.slice(2);
+
+// ---------- icon source: local @iconify-json/* packages → disk cache → Iconify API ----------
+// Local sets are versioned by the lockfile, so they are the deterministic path (CI, --offline).
+const OFFLINE = args.includes('--offline') || process.env.PIKTO_OFFLINE === '1';
+const CACHE = process.env.PIKTO_CACHE || path.join(os.homedir(), '.cache', 'pikto');
+const PIKTO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const localSets = new Map();
+function localSetDirs() {
+  const dirs = new Map();
+  for (const start of [process.cwd(), PIKTO_ROOT]) for (let d = path.resolve(start); ; d = path.dirname(d)) {
+    const base = path.join(d, 'node_modules', '@iconify-json');
+    if (fs.existsSync(base)) for (const p of fs.readdirSync(base)) if (!dirs.has(p) && fs.existsSync(path.join(base, p, 'icons.json'))) dirs.set(p, path.join(base, p));
+    if (d === path.dirname(d)) break;
+  }
+  return dirs;
+}
+function localSet(prefix) {
+  if (!localSets.has(prefix)) {
+    const dir = localSetDirs().get(prefix);
+    localSets.set(prefix, dir ? { ...JSON.parse(fs.readFileSync(path.join(dir, 'icons.json'), 'utf8')), info: JSON.parse(fs.readFileSync(path.join(dir, 'info.json'), 'utf8')), pkgVersion: JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).version } : null);
+  }
+  return localSets.get(prefix);
+}
+async function getJSON(url) {
+  const f = path.join(CACHE, createHash('sha1').update(url).digest('hex') + '.json');
+  if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8'));
+  if (OFFLINE) throw new Error(`offline and not cached: ${url} (install @iconify-json/<prefix>)`);
+  const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${url}`);
+  const j = await r.json();
+  fs.mkdirSync(CACHE, { recursive: true }); fs.writeFileSync(f, JSON.stringify(j));
+  return j;
+}
+// resolve plain aliases (no rotate/flip transforms) to their parent icon
+function pickIcons(set, names) {
+  const icons = {};
+  for (const n of names) {
+    let k = n, hops = 0;
+    while (!set.icons[k] && set.aliases?.[k] && hops++ < 5) { const al = set.aliases[k]; if (al.rotate || al.hFlip || al.vFlip) break; k = al.parent; }
+    if (set.icons[k]) icons[n] = set.icons[k];
+  }
+  return { icons, height: set.height, width: set.width };
+}
+async function iconData(prefix, names) {
+  const loc = localSet(prefix);
+  return loc ? pickIcons(loc, names) : getJSON(`${API}/${prefix}.json?icons=${names.join(',')}`);
+}
+async function collections(prefixes) {
+  const res = {}, remote = [];
+  for (const p of prefixes) { const l = localSet(p); if (l) res[p] = { ...l.info, version: l.info.version ?? l.pkgVersion, height: l.height ?? l.info.height, source: `@iconify-json/${p}@${l.pkgVersion}` }; else remote.push(p); }
+  if (remote.length) try { Object.assign(res, await getJSON(`${API}/collections?prefixes=${remote.join(',')}`)); } catch (e) { if (!OFFLINE) throw e; }
+  return res;
+}
+async function searchIds(query, prefixes, limit) {
+  const local = [...localSetDirs().keys()].filter((p) => !prefixes || prefixes.includes(p));
+  if (OFFLINE || (prefixes && prefixes.every((p) => local.includes(p)))) {
+    const q = query.toLowerCase().trim().replace(/\s+/g, '-'), toks = q.split('-');
+    const hits = [];
+    for (const p of local) { const s = localSet(p);
+      for (const n of [...Object.keys(s.icons), ...Object.keys(s.aliases ?? {})]) {
+        const parts = n.split('-');
+        const rank = n === q ? 0 : parts.slice(0, toks.length).join('-') === q ? 1 : toks.every((t) => parts.includes(t)) ? 2 : n.includes(q) ? 3 : -1;
+        if (rank >= 0) hits.push([rank, n.length, `${p}:${n}`]);
+      } }
+    return hits.sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, limit).map((h) => h[2]);
+  }
+  return (await getJSON(`${API}/search?query=${encodeURIComponent(query)}&limit=${limit}${prefixes ? `&prefixes=${prefixes.join(',')}` : ''}`)).icons;
+}
 const flag = (n, d) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : d; };
 const out = (o) => console.log(JSON.stringify(o, null, 2));
 
@@ -68,7 +137,10 @@ function profile(repo) {
       construction.push(a.fill === 'none' || a['stroke-width'] ? 'stroke' : 'fill');
     }
   }
-  const grid = component?.grid ?? Number(mode(grids)) ?? 24;
+  // no icons in the repo yet: the grid is a free choice (24); stroke and size come from DESIGN.md intent
+  const intent = readIntent(repo);
+  const grid = component?.grid ?? (grids.length ? Number(mode(grids)) : 24);
+  const render = intent.glyph_px ?? null;
   const gridConsistency = grids.length ? +(grids.filter((g) => g === grid).length / grids.length).toFixed(2) : null;
   const sw = median(strokeWidths);
   const nStroke = construction.filter((c) => c === 'stroke').length;
@@ -86,9 +158,13 @@ function profile(repo) {
       grid, grid_consistency: gridConsistency, stroke_width: sw, stroke_ratio: sw ? +(sw / grid).toFixed(4) : null,
       stroke_width_at_24: sw ? +((sw / grid) * 24).toFixed(2) : null,
       linecap: mode(caps), linejoin: mode(joins),
-      construction: { stroke_shapes: nStroke, fill_shapes: construction.length - nStroke, dominant: nStroke >= construction.length / 2 ? 'stroke' : 'fill' },
+      construction: { stroke_shapes: nStroke, fill_shapes: construction.length - nStroke, dominant: !construction.length ? null : nStroke >= construction.length / 2 ? 'stroke' : 'fill' },
       fill_convention: registry ? 'fill shapes carry stroke="none"; stroke shapes carry fill="none"; colour inherited from <svg>' : 'currentColor',
-      render_sizes: [...new Set(sizes)],
+      render_sizes: [...new Set(sizes.length ? sizes : render ? [String(render)] : [])],
+      // DESIGN.md stroke rule, in px at the render size and in grid units; adapt clamps to it when no stroke_width is measured
+      stroke_px_range: intent.stroke_px ?? null, render_px: render,
+      stroke_range: intent.stroke_px && render ? intent.stroke_px.map((v) => +((v * grid) / render).toFixed(3)) : null,
+      source: construction.length ? 'measured from existing icons' : intent.file ? `no icons found; intent from ${intent.file}` : 'no icons found; defaults',
     },
     tokens: { accent: pick(/accent|gradient-stop/), radius: pick(/radius|rounded/), fonts: pick(/font/) },
     evidence: { files_scanned: files.length, stroke_samples: strokeWidths.length, shapes_sampled: construction.length },
@@ -106,17 +182,17 @@ function features(body, height) {
 }
 async function search(query, prof) {
   const fam = prof.icon_system.families;
-  const lists = [getJSON(`${API}/search?query=${encodeURIComponent(query)}&limit=150`)];
-  if (fam.length) lists.push(getJSON(`${API}/search?query=${encodeURIComponent(query)}&limit=64&prefixes=${fam.join(',')}`));
-  const ids = [...new Set((await Promise.all(lists)).flatMap((r) => r.icons))];
+  const lists = [searchIds(query, null, 150)];
+  if (fam.length) lists.push(searchIds(query, fam, 64));
+  const ids = [...new Set((await Promise.all(lists)).flat())];
   const byPrefix = {};
   ids.forEach((id) => { const [p, n] = id.split(':'); (byPrefix[p] ??= []).push(n); });
-  const cols = await getJSON(`${API}/collections?prefixes=${Object.keys(byPrefix).join(',')}`);
+  const cols = await collections(Object.keys(byPrefix));
   const target = prof.icon_system;
   const cands = [];
   await Promise.all(Object.entries(byPrefix).map(async ([p, names]) => {
     const col = cols[p]; if (!col) return;
-    const data = await getJSON(`${API}/${p}.json?icons=${names.join(',')}`);
+    const data = await iconData(p, names);
     for (const n of names) {
       const ic = data.icons[n]; if (!ic) continue;
       const h = ic.height ?? data.height ?? col.height ?? 16;
@@ -148,7 +224,7 @@ function scaleAttrs(a, k) {
 }
 async function adapt(id, prof) {
   const [p, n] = id.split(':');
-  const data = await getJSON(`${API}/${p}.json?icons=${n}`);
+  const data = await iconData(p, [n]);
   const ic = data.icons[n]; if (!ic) throw new Error('icon not found ' + id);
   const srcGrid = ic.height ?? data.height;
   const t = prof.icon_system;
@@ -163,13 +239,17 @@ async function adapt(id, prof) {
     a = { ...inherited, ...a };
     scaleAttrs(a, k);
     const isStroke = a.fill === 'none' || a.stroke;
+    const src = { sw: a['stroke-width'] ? +a['stroke-width'] * k : null, cap: a['stroke-linecap'], join: a['stroke-linejoin'] };
     for (const c of ['fill', 'stroke', 'color', 'stroke-width', 'stroke-linecap', 'stroke-linejoin']) delete a[c];
-    if (isStroke) Object.assign(a, { fill: 'none', 'stroke-linecap': t.linecap || 'round', 'stroke-linejoin': t.linejoin || 'round', 'stroke-width': String(t.stroke_width ?? +(t.grid / 16).toFixed(2)) });
+    // measured repo stroke wins; otherwise keep the source stroke, clamped to the DESIGN.md range
+    const sw = t.stroke_width ?? (src.sw && t.stroke_range ? Math.min(Math.max(src.sw, t.stroke_range[0]), t.stroke_range[1]) : src.sw) ?? t.grid / 16;
+    if (isStroke) Object.assign(a, { fill: 'none', 'stroke-linecap': t.linecap || src.cap || 'round', 'stroke-linejoin': t.linejoin || src.join || 'round', 'stroke-width': String(+sw.toFixed(3)) });
     else a.stroke = 'none';
     return `<${name} ${Object.entries(a).map(([kk, v]) => `${kk}="${v}"`).join(' ')}/>`;
   });
   const isStroke = outEls.some((e) => e.includes('fill="none"'));
-  ops.push(isStroke ? `normalize strokes → width ${t.stroke_width}, caps ${t.linecap}, joins ${t.linejoin}` : 'fill shapes: drop hard-coded colour, add stroke="none" (repo convention)');
+  const outSw = outEls.join('').match(/stroke-width="([\d.]+)"/)?.[1];
+  ops.push(isStroke ? `normalize strokes → width ${outSw}${t.stroke_width ? '' : t.stroke_range ? ` (source stroke clamped to DESIGN.md ${t.stroke_range.join('–')})` : ' (source stroke kept)'}, caps ${t.linecap ?? 'source'}, joins ${t.linejoin ?? 'source'}` : 'fill shapes: drop hard-coded colour, add stroke="none" (repo convention)');
   ops.push('remove colour attributes (colour inherited from <Icon>)');
   // mirror the host component (fill+stroke inherited) so svgo does not strip "useless" stroke attrs
   const wrapped = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.grid} ${t.grid}" fill="currentColor" stroke="currentColor">${outEls.join('')}</svg>`;
@@ -218,7 +298,7 @@ async function addIcon(id, name, prof) {
   const v = validate(a.fragment, prof);
   if (!v.ok) return { added: false, adapt: a, validation: v };
   const [p] = id.split(':');
-  const col = (await getJSON(`${API}/collections?prefixes=${p}`))[p];
+  const col = (await collections([p]))[p];
   const prov = { name, source: id, set: col.name, version: col.version, license: col.license, author: col.author, source_url: `${API}/${id.replace(':', '/')}.svg`, operations: a.operations, reading: flag('reading', null), permission: flag('permission', null), added: new Date().toISOString().slice(0, 10) };
   const reg = prof.icon_system.registry;
   let target;
@@ -278,7 +358,7 @@ async function differ(id, prof) {
 // ---------- audit (intent = DESIGN.md, evidence = code) ----------
 const GLYPH = /[\u2190-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2600-\u27BF\u2B00-\u2BFF\u00D7\u2715\u2713\u{1F300}-\u{1FAFF}]/gu;
 const NOT_ICON = /[\u00B7\u2022\u2026]/; // middle dot, bullet, ellipsis are typography
-function audit(repo) {
+function readIntent(repo) {
   const intent = {};
   const dm = ['DESIGN.md', 'design.md'].map((n) => path.join(repo, n)).find((p) => fs.existsSync(p));
   if (dm) { const t = fs.readFileSync(dm, 'utf8');
@@ -288,6 +368,10 @@ function audit(repo) {
     const rules = intent.icon_rules.join(' '); const px = rules.match(/(\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)px stroke/) || rules.match(/()()(\d+(?:\.\d+)?)px stroke(?! glyph)/);
     if (px) intent.stroke_px = px[3] ? [+px[3], +px[3]] : [+px[1], +px[2]];
     const sz = intent.icon_rules.join(' ').match(/(\d+)px (?:stroke )?glyph/); if (sz) intent.glyph_px = +sz[1]; }
+  return intent;
+}
+function audit(repo) {
+  const intent = readIntent(repo);
   const uses = [];
   for (const f of walk(repo)) {
     if (!/\.(tsx?|jsx?|mjs|html|astro|vue|svelte)$/.test(f) || /\.test\./.test(f)) continue;
@@ -317,6 +401,138 @@ function audit(repo) {
   return { repo: path.resolve(repo), intent, summary: { icon_glyphs: icons.length, typographic: uses.length - icons.length, roles: Object.keys(roles).length, issues: issues.length }, issues, vocabulary, roles, uses };
 }
 
+// ---------- sheet (contact sheet: before → after in the repo's own tokens; the human decides here) ----------
+// Input is a proposal the agent writes (.pikto/proposal.json): roles → items → candidate ids + reading.
+// Everything below is deterministic: adapt, validate, measure, compare within each role family, render HTML.
+function repoTokens(repo) {
+  const tokens = {};
+  const dm = path.join(repo, 'DESIGN.md');
+  if (fs.existsSync(dm)) for (const m of fs.readFileSync(dm, 'utf8').matchAll(/^\s+([\w-]+):\s*'(#[0-9a-fA-F]{3,8})'/gm)) tokens[m[1]] ??= m[2];
+  for (const f of walkAll(repo, /\.css$/)) for (const m of fs.readFileSync(f, 'utf8').matchAll(/--([\w-]+):\s*([^;}]+)[;}]/g)) tokens[m[1]] ??= m[2].trim();
+  return tokens;
+}
+function walkAll(dir, re, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP.has(e.name)) continue;
+    const p = path.join(dir, e.name);
+    e.isDirectory() ? walkAll(p, re, out) : re.test(e.name) && out.push(p);
+  }
+  return out;
+}
+const resolveVar = (v, tokens, depth = 0) => typeof v !== 'string' || depth > 5 ? v : v.replace(/var\(--([\w-]+)(?:,\s*([^)]+))?\)/g, (_, k, fb) => resolveVar(tokens[k] ?? fb ?? '#000', tokens, depth + 1));
+// optical stroke thickness in px at the render size, for any construction: 2·area / perimeter of the rendered ink
+function strokePx(fragment, grid, px) {
+  const ss = 8, n = px * ss, m = mask(fragment, grid, n);
+  // perimeter by Cauchy–Crofton: ink/background transitions along rows and columns × π/4 (unbiased over edge angles)
+  let area = 0, cross = 0;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; area += m[i];
+    if (x + 1 < n && m[i] !== m[i + 1]) cross++; if (y + 1 < n && m[i] !== m[i + n]) cross++; }
+  const perim = (cross * Math.PI) / 4;
+  return perim ? +((2 * area) / perim / ss).toFixed(2) : null;
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+async function sheet(repo, prof, proposal, outFile) {
+  const t = prof.icon_system, tokens = repoTokens(repo), aud = audit(repo);
+  const font = resolveVar(proposal.font ?? 'Inter, system-ui, sans-serif', tokens);
+  const range = t.stroke_px_range, cols = {}, report = { file: null, roles: [], sources: {}, failed: [] };
+  for (const role of proposal.roles) {
+    const ctx = { size: t.render_px ?? 24, box: null, radius: 0, color: 'currentColor', background: 'transparent', ...role.context };
+    const items = [];
+    for (const it of role.items) {
+      const c = { ...ctx, ...it.context };
+      const cands = [];
+      for (const id of it.candidates) {
+        try {
+          const a = await adapt(id, prof), v = validate(a.fragment, prof), p = id.split(':')[0];
+          cols[p] ??= (await collections([p]))[p];
+          const col = cols[p], sp = strokePx(a.fragment, t.grid, c.size);
+          const notes = v.issues.slice();
+          if (range && sp && (sp < range[0] - 0.15 || sp > range[1] + 0.15)) notes.push(`stroke ≈${sp}px at ${c.size}px, DESIGN.md asks ${range.join('–')}px`);
+          cands.push({ id, fragment: a.fragment, ok: v.ok, stroke_px: sp, license: col?.license?.spdx ?? '?', set: col?.name ?? p, notes });
+          report.sources[id] = { set: col?.name, version: col?.version, license: col?.license?.spdx, via: col?.source ?? 'api.iconify.design' };
+        } catch (e) { cands.push({ id, error: e.message, notes: [e.message] }); report.failed.push({ id, error: e.message }); }
+      }
+      items.push({ ...it, ctx: c, cands });
+    }
+    // différance inside the family: the proposed (first) candidates must share weight and stay distinguishable
+    // A role marked "frame": true intends a shared frame (Isotype's works in a series, e.g. one circle for all states):
+    // the frame is the ink a strict majority of members share, and only the marks (ink minus frame) are compared.
+    const lead = items.map((it) => it.cands.find((c) => c.fragment)).map((c) => c && { c, m: mask(c.fragment, t.grid) });
+    const ms = lead.filter(Boolean).map((l) => l.m), inkMed = median(ms.map(ink));
+    let frame = new Uint8Array(ms[0]?.length ?? 0);
+    if (role.frame && ms.length >= 3) for (let k = 0; k < frame.length; k++) { let c = 0; for (const m of ms) c += m[k]; frame[k] = c * 2 > ms.length ? 1 : 0; }
+    let frameShare = +(ink(frame) / (inkMed || 1)).toFixed(2);
+    if (role.frame && frameShare < 0.3) report.failed.push({ role: role.role, error: 'role declares a shared frame but members share almost no ink' });
+    if (frameShare) lead.forEach((l) => { if (!l) return; let inside = 0; for (let k = 0; k < frame.length; k++) inside += l.m[k] & frame[k];
+      if (inside < ink(frame) * frame.length * 0.5) l.c.notes.push('does not share the family frame'); });
+    const markOf = (m) => m.map((v, k) => v & (1 - frame[k]));
+    lead.forEach((l, i) => { if (!l) return;
+      let best = null;
+      lead.forEach((o, j) => { if (o && j !== i) { const s = iou(markOf(l.m), markOf(o.m)); if (!best || s > best.iou) best = { name: items[j].meaning, iou: +s.toFixed(3) }; } });
+      const r = inkMed ? +(ink(l.m) / inkMed).toFixed(2) : null;
+      l.c.family = { nearest: best, weight: r, shared_frame: frameShare };
+      if (best && best.iou > 0.55) l.c.notes.push(`confusable with "${best.name}" (mark IoU ${best.iou})`);
+      if (r && (r < 0.6 || r > 1.6)) l.c.notes.push(`weight ${r}× family median`);
+    });
+    report.roles.push({ role: role.role, items: items.map((it) => ({ meaning: it.meaning, today: it.today, candidates: it.cands.map(({ id, ok, stroke_px, family, notes }) => ({ id, ok, stroke_px, family, notes })) })) });
+    role._items = items;
+  }
+  const tile = (c, ctx, big) => {
+    const sz = big ? ctx.size : Math.round(ctx.size * 0.9), box = ctx.box ?? sz + 16;
+    const inner = c.fragment ? `<svg viewBox="0 0 ${t.grid} ${t.grid}" width="${sz}" height="${sz}" fill="currentColor" stroke="currentColor" aria-hidden="true">${c.fragment}</svg>` : `<span class="err">✕</span>`;
+    return `<div class="swatch" style="width:${box}px;height:${box}px;border-radius:${ctx.radius}px;background:${esc(resolveVar(ctx.background, tokens))};color:${esc(resolveVar(ctx.color, tokens))}">${inner}</div>`;
+  };
+  const glyph = (g, ctx) => `<div class="swatch" style="width:${ctx.box ?? ctx.size + 16}px;height:${ctx.box ?? ctx.size + 16}px;border-radius:${ctx.radius}px;background:${esc(resolveVar(ctx.background, tokens))};color:${esc(resolveVar(ctx.color, tokens))};font:${ctx.size}px/1 ${esc(font)}">${esc(g ?? '—')}</div>`;
+  const roleHtml = proposal.roles.map((role) => `
+  <section><h2>${esc(role.role)}</h2>${role.note ? `<p class="note">${esc(role.note)}</p>` : ''}
+    <div class="grid">${role._items.map((it) => { const [lead, ...alts] = it.cands; return `
+      <figure>
+        <div class="pair">${glyph(it.today, it.ctx)}<span class="arrow">→</span>${tile(lead, it.ctx, true)}</div>
+        <figcaption><b>${esc(it.meaning)}</b><code>${esc(lead.id)}</code>
+          <span class="meta">${esc(lead.set ?? '')} · ${esc(lead.license ?? '')}${lead.stroke_px ? ` · ≈${lead.stroke_px}px stroke` : ''}</span>
+          ${it.reading ? `<span class="reading">${esc(it.reading)}</span>` : ''}
+          ${lead.notes.map((n) => `<span class="warn">${esc(n)}</span>`).join('')}
+        </figcaption>
+        ${alts.length ? `<div class="alts">${alts.map((a) => `<div title="${esc(a.id)}">${tile(a, it.ctx, false)}<code>${esc(a.id)}</code>${a.notes.map((n) => `<span class="warn">${esc(n)}</span>`).join('')}</div>`).join('')}</div>` : ''}
+      </figure>`; }).join('')}
+    </div>
+  </section>`).join('');
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pikto sheet: ${esc(path.basename(repo))}</title>
+<style>
+:root{--ink:#1c1c1a;--muted:#6b6a66;--line:#e2dfd8;--page:#faf9f6;--card:#fff;--warn:#9a5b12}
+@media (prefers-color-scheme:dark){:root{--ink:#ecebe7;--muted:#a3a19b;--line:#34332f;--page:#161614;--card:#1f1f1c;--warn:#e0a458}}
+*{box-sizing:border-box}body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1080px;margin:auto;padding:32px 16px 64px}h1{font-size:22px;margin:0 0 4px}h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:36px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.lede{color:var(--muted);margin:0 0 20px}.intent{display:grid;gap:4px;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px;font-size:13px}
+.intent .warn{display:block}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+figure{margin:0;padding:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;display:grid;gap:10px;align-content:start}
+.pair{display:flex;align-items:center;gap:12px}.arrow{color:var(--muted)}.swatch{display:grid;place-items:center;flex:none;border:1px solid rgba(0,0,0,.06)}
+figcaption{display:grid;gap:3px;font-size:12px}code{font:11px ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}.meta{color:var(--muted);font-size:11px}
+.reading{font-size:12px}.warn{color:var(--warn);font-size:11px}.warn::before{content:"⚠ "}.note{color:var(--muted);margin:-4px 0 12px;font-size:13px}
+.alts{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--line)}.alts>div{display:grid;gap:4px;justify-items:start;max-width:110px}
+ol{padding-left:20px}table{border-collapse:collapse;width:100%;font-size:12px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}.err{color:var(--warn)}
+</style></head><body><main>
+<h1>${esc(proposal.title ?? `Icon proposal: ${path.basename(repo)}`)}</h1>
+<p class="lede">Before → after in the repo's own colours and sizes. Generated by <code>pikto sheet</code>; pick on this page, then run <code>apply</code>.</p>
+<div class="intent">
+${(aud.intent.icon_rules ?? []).map((r) => `<span>${esc(aud.intent.file)}: ${esc(r)}</span>`).join('')}
+<span>Audit: ${aud.summary.icon_glyphs} icon glyphs in ${aud.summary.roles} roles.</span>
+${aud.issues.map((i) => `<span class="warn">${esc(i)}</span>`).join('')}
+</div>
+${roleHtml}
+${proposal.questions?.length ? `<h2>Open decisions</h2><ol>${proposal.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ol>` : ''}
+<h2>Sources</h2><table><tr><th>icon</th><th>set</th><th>license</th><th>via</th></tr>
+${Object.entries(report.sources).map(([id, s]) => `<tr><td><code>${esc(id)}</code></td><td>${esc(s.set)} ${esc(s.version ?? '')}</td><td>${esc(s.license)}</td><td>${esc(s.via)}</td></tr>`).join('')}
+</table></main></body></html>
+`;
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  fs.writeFileSync(outFile, html);
+  report.file = outFile;
+  return report;
+}
+
 // ---------- CLI ----------
 const [cmd, x, y] = args;
 const loadProfile = () => JSON.parse(fs.readFileSync(flag('profile', '.pikto/profile.json'), 'utf8'));
@@ -328,6 +544,7 @@ try {
   else if (cmd === 'validate') out(validate(fs.readFileSync(x, 'utf8').replace(/^[\s\S]*?<svg[^>]*>|<\/svg>[\s\S]*$/g, ''), loadProfile()));
   else if (cmd === 'differ') { const p = loadProfile(); const ids = [x, ...args.slice(2).filter((v, i, arr) => !v.startsWith('--') && !(arr[i - 1] || '').startsWith('--'))]; out(await Promise.all(ids.map((i) => differ(i, p)))); }
   else if (cmd === 'add') out(await addIcon(x, y, loadProfile()));
+  else if (cmd === 'sheet') { const repo = x || '.'; out(await sheet(repo, loadProfile(), JSON.parse(fs.readFileSync(flag('proposal', path.join(repo, '.pikto', 'proposal.json')), 'utf8')), flag('out', path.join(repo, '.pikto', 'sheet.html')))); }
   else console.log(`pikto <command>
   profile <repo>                     derive visual profile (JSON to stdout)
   search  <concept> --profile P      ranked, licence-filtered candidates from Iconify
@@ -335,5 +552,7 @@ try {
   validate <file.svg> --profile P    check an SVG against the profile
   audit   <repo> [--full]           DESIGN.md intent vs icon-like glyphs/SVG in code: roles, inconsistencies
   differ  <id> [id…] --profile P     visual weight vs siblings, confusability, distance from the generic default
-  add     <prefix:name> <name> --profile P [--reading "…" --permission "…"]   adapt + validate + write + provenance`);
+  add     <prefix:name> <name> --profile P [--reading "…" --permission "…"]   adapt + validate + write + provenance
+  sheet   <repo> --profile P [--proposal F --out sheet.html]   contact sheet: today's glyph → proposed icon, per role family
+global: --offline   use only local @iconify-json/* packages and the cache (${'$'}PIKTO_CACHE, default ~/.cache/pikto)`);
 } catch (e) { console.error('error:', e.message); process.exit(1); }

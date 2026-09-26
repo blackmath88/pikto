@@ -1,0 +1,46 @@
+{
+  "repo": "/home/user/blackmath88/opendata-explorer",
+  "icon_system": {
+    "families": [],
+    "registry": null,
+    "component": null,
+    "grid": 24,
+    "grid_consistency": null,
+    "stroke_width": null,
+    "stroke_ratio": null,
+    "stroke_width_at_24": null,
+    "linecap": null,
+    "linejoin": null,
+    "construction": {
+      "stroke_shapes": 0,
+      "fill_shapes": 0,
+      "dominant": null
+    },
+    "fill_convention": "currentColor",
+    "render_sizes": [
+      "18"
+    ],
+    "stroke_px_range": [
+      1,
+      1.5
+    ],
+    "render_px": 18,
+    "stroke_range": [
+      1.333,
+      2
+    ],
+    "source": "no icons found; intent from DESIGN.md"
+  },
+  "tokens": {
+    "accent": {
+      "accent": "#dfe9e3"
+    },
+    "radius": {},
+    "fonts": {}
+  },
+  "evidence": {
+    "files_scanned": 70,
+    "stroke_samples": 0,
+    "shapes_sampled": 0
+  }
+}

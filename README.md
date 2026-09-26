@@ -16,14 +16,19 @@ pikto adapt    <prefix:name> --profile P    rescale, restroke and optimise; repo
 pikto differ   <id…> --profile P            visual weight vs siblings, confusability, distance from the generic default
 pikto validate <file.svg> --profile P
 pikto add      <prefix:name> <name> --profile P --reading "…" --permission "…"
+pikto audit    <repo>                      DESIGN.md intent vs icon-like glyphs in code
+pikto sheet    <repo> --profile P --proposal F   contact sheet: today's glyph → proposed icon, per role family
 ```
-Setup: `npm i`, then `node bin/pikto.mjs …`. Icon data comes from the [Iconify API](https://api.iconify.design).
+Setup: `npm i`, then `node bin/pikto.mjs …`. Tests: `npm test` (offline).
+
+Icon data comes from local `@iconify-json/<prefix>` packages when installed (versioned by the lockfile, so deterministic), otherwise from the [Iconify API](https://api.iconify.design) through a disk cache (`$PIKTO_CACHE`, default `~/.cache/pikto`). `--offline` never touches the network.
 
 ## Docs
 - [docs/RESEARCH.md](docs/RESEARCH.md): prior art and the reuse decision
 - [docs/CONCEPT.md](docs/CONCEPT.md): architecture
 - [docs/ENTSLOPIFY.md](docs/ENTSLOPIFY.md): différance, the pictogram lineage, Lumpesammlig, and the Syntax view
 - [docs/WORKFLOW.md](docs/WORKFLOW.md): architecture and UX for polishing a finished repo (opendata-explorer)
+- [docs/AUDIT.md](docs/AUDIT.md), [docs/SHEET.md](docs/SHEET.md): intent vs code, and the contact sheet where the human decides
 - [docs/EXAMPLE.md](docs/EXAMPLE.md), [docs/EVALUATION.md](docs/EVALUATION.md): the first vertical slice (Astro portfolio, 404 compass)
 - [ROADMAP.md](ROADMAP.md)
 
