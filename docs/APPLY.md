@@ -43,3 +43,11 @@ Result:
 ## Limits
 - The lexer doesn't understand regex literals or JSX text. Framework templates (`.vue`, `.svelte`, `.astro`) need their own write target.
 - Replacing a glyph inside something that escapes HTML, or inside an SVG `<text>`, produces the wrong output even when it typechecks. `apply` can't see that, so those sites belong in `skip` or get a hand edit (this is the *reading* step).
+
+## Follow-up: Topic category icons (Discover)
+New icons, not glyph replacement: [proposal](proposal-opendata-categories.json) → [sheet](sheet-opendata-categories.html) → `pikto add` ×10 into the module `apply` generated → a hand-written rim badge in the D3 circle-pack.
+- `add` needed a fix: `apply`'s module keeps its map in a non-exported `const PATHS = {…} as const`. `add` now finds non-exported maps, keeps the file's indentation, inserts before `} as const`, and treats a module that pikto generated as a registry at any size.
+- Rejected on the rendered page: the icon in the breadcrumb. It made the flex row overflow, so every crumb got truncated ("To… › Environment & Clim…"). The badge on the rim stays.
+- Result: [blackmath88/opendata-explorer#12](https://github.com/blackmath88/opendata-explorer/pull/12) (stacked on #11).
+
+![Topic category icons](opendata-categories-before-after.png)

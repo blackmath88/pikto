@@ -136,3 +136,19 @@ test('profile + apply: an imported library is the convention and the write targe
   assert.equal(prov[0].component, 'ArrowUpRight');
   assert.equal(prov[0].package_version, '^0.468.0');
 });
+
+test('add: into the module apply generated (non-exported PATHS map, its indentation, before "} as const")', () => {
+  const work = path.join(tmp, 'add-repo');
+  fs.cpSync(repo, work, { recursive: true });
+  run('apply', work, '--profile', prof, '--decision', path.join(here, 'fixtures', 'decision.json'));
+  const pf = path.join(tmp, 'add-profile.json');
+  fs.writeFileSync(pf, JSON.stringify(run('profile', work)));
+  const reg = JSON.parse(fs.readFileSync(pf, 'utf8')).icon_system.registry;
+  assert.equal(reg.file, 'src/ui/icons.ts');
+  assert.equal(reg.export, 'PATHS');
+  const r = run('add', 'ph:leaf', 'topic-environment', '--profile', pf, '--meaning', 'Environment & Climate');
+  assert.equal(r.added, true, JSON.stringify(r.validation));
+  const mod = fs.readFileSync(path.join(work, 'src/ui/icons.ts'), 'utf8');
+  assert.match(mod, /\n  \/\/ ph:leaf \(Phosphor [\d.]+, MIT\): Environment & Climate[^\n]*\n  'topic-environment': `<path stroke="none"[^`]+`,\n\} as const;/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(work, '.pikto/provenance.json'), 'utf8')).icons.find((i) => i.name === 'topic-environment').meaning, 'Environment & Climate');
+});
