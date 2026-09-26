@@ -1,5 +1,8 @@
 # Roadmap
 
+## Done (v0.6)
+- Own hand-drawn sets: host `<svg>` wrapper in profile/adapt/measurement; `apply` registry mode calling the repo's `icon()` (docs/OWN-SET.md)
+
 ## Done (v0.5)
 - `audit` separates icons from typography (br-ai-nstorm: 23 → 5); inventories icon-library imports
 - `profile` adopts an imported library's grammar; `apply` writes library components into JSX (see docs/LIBRARY.md)

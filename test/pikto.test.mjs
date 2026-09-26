@@ -152,3 +152,37 @@ test('add: into the module apply generated (non-exported PATHS map, its indentat
   assert.match(mod, /\n  \/\/ ph:leaf \(Phosphor [\d.]+, MIT\): Environment & Climate[^\n]*\n  'topic-environment': `<path stroke="none"[^`]+`,\n\} as const;/);
   assert.equal(JSON.parse(fs.readFileSync(path.join(work, '.pikto/provenance.json'), 'utf8')).icons.find((i) => i.name === 'topic-environment').meaning, 'Environment & Climate');
 });
+
+test('own icon set: wrapper convention in profile/adapt/add, and apply calling the repo\'s icon()', () => {
+  const work = path.join(tmp, 'own-icons');
+  fs.cpSync(path.join(here, 'fixtures', 'own-icons-repo'), work, { recursive: true });
+  const pf = path.join(tmp, 'own-profile.json');
+  fs.writeFileSync(pf, JSON.stringify(run('profile', work)));
+  const t = JSON.parse(fs.readFileSync(pf, 'utf8')).icon_system;
+  assert.deepEqual(t.wrapper, { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  assert.equal(t.stroke_width, 1.5);
+  assert.equal(t.construction.dominant, 'stroke');
+  // a 2px Lucide icon comes out bare: stroke, width, caps are inherited from the host <svg>
+  const a = run('adapt', 'lucide:leaf', '--profile', pf);
+  assert.ok(a.validation.ok, a.validation.issues.join());
+  assert.doesNotMatch(a.fragment, /stroke-width|fill="none"|stroke-linecap/);
+  const added = run('add', 'lucide:leaf', 'topic-environment', '--profile', pf);
+  assert.equal(added.added, true);
+  assert.match(fs.readFileSync(path.join(work, 'src/ui/icons.ts'), 'utf8'), /'topic-environment': `<path d="[^"]+"\/>[^`]*`,\n\} as const;/);
+  // apply uses the existing icon(name, { size }) and generates nothing
+  const decision = path.join(tmp, 'own-decision.json');
+  fs.writeFileSync(decision, JSON.stringify({ module: 'src/ui/icons.ts', call: "icon('$name', { size: $size })",
+    replace: [{ glyph: '⌕', icon: 'discover', size: 18 }, { glyph: '↗', icon: 'external', size: 12 }] }));
+  const r = run('apply', work, '--profile', pf, '--decision', decision);
+  assert.equal(r.target, 'registry');
+  assert.deepEqual(r.files.sort(), ['.pikto/audit.json', 'src/main.ts']);
+  const main = fs.readFileSync(path.join(work, 'src/main.ts'), 'utf8');
+  assert.match(main, /^import \{ icon \} from '\.\/ui\/icons';/m);
+  assert.match(main, /\$\{icon\('discover', \{ size: 18 \}\)\}/);
+  assert.match(main, /Open source \$\{icon\('external', \{ size: 12 \}\)\}/);
+  fs.writeFileSync(decision, JSON.stringify({ call: "icon('$name', { size: $size })", module: 'src/ui/icons.ts', replace: [{ glyph: '↗', icon: 'nope' }] }));
+  let miss = null;
+  try { run('apply', work, '--profile', pf, '--decision', decision); } catch (e) { miss = JSON.parse(e.stdout); } // exits 1
+  assert.equal(miss?.applied, false);
+  assert.match(miss.failed[0].issues[0], /add it first/);
+});

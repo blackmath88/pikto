@@ -1,0 +1,115 @@
+{
+  "title": "Topic category icons for the Discover cards (DataFit grammar)",
+  "font": "Inter, system-ui, sans-serif",
+  "roles": [
+    {
+      "role": "Topic categories on the Atlas cards",
+      "note": "In the card header before the title, 18px, in the repo's own grammar: 24 grid, 1.5 stroke from the <svg> wrapper, round caps and joins. Line icons only; the Phosphor fills from #12 would be a second grammar next to the 59 hand-drawn icons.",
+      "context": {
+        "size": 18,
+        "box": 36,
+        "radius": 8,
+        "color": "var(--primary2)",
+        "background": "var(--panel)"
+      },
+      "items": [
+        {
+          "meaning": "Environment & Climate",
+          "today": "—",
+          "candidates": [
+            "tabler:leaf",
+            "lucide:sprout",
+            "lucide:leaf"
+          ],
+          "reading": "The organic part, not a place: a leaf, so Public Space keeps the trees. lucide:leaf has an arc radius of 25.9, which breaks the set's 'every number within 24' rule."
+        },
+        {
+          "meaning": "Mobility & Transport",
+          "today": "—",
+          "candidates": [
+            "lucide:train-front",
+            "lucide:bike",
+            "lucide:tram-front"
+          ],
+          "reading": "Basel's tram, head-on; lucide:tram-front is 1.74× the set's weight."
+        },
+        {
+          "meaning": "People & Society",
+          "today": "—",
+          "candidates": [
+            "tabler:users-group",
+            "lucide:users"
+          ],
+          "reading": "A group, not one person; lucide:users is near-identical to the generic default."
+        },
+        {
+          "meaning": "Built City & Infrastructure",
+          "today": "—",
+          "candidates": [
+            "tabler:building",
+            "tabler:building-skyscraper",
+            "lucide:building-2"
+          ],
+          "reading": "The built fabric; lucide:building-2 is 2.2× the set's weight."
+        },
+        {
+          "meaning": "Public Space & Leisure",
+          "today": "—",
+          "candidates": [
+            "lucide:trees",
+            "tabler:trees",
+            "lucide:tent-tree"
+          ],
+          "reading": "A place you go to; distinct from the single leaf."
+        },
+        {
+          "meaning": "Health",
+          "today": "—",
+          "candidates": [
+            "lucide:heart-pulse",
+            "tabler:heartbeat",
+            "lucide:activity"
+          ],
+          "reading": "A vital sign; a cross reads as emergency."
+        },
+        {
+          "meaning": "Education",
+          "today": "—",
+          "candidates": [
+            "lucide:graduation-cap",
+            "tabler:school"
+          ],
+          "reading": "The institution."
+        },
+        {
+          "meaning": "Culture",
+          "today": "—",
+          "candidates": [
+            "lucide:drama",
+            "tabler:masks-theater",
+            "lucide:theater"
+          ],
+          "reading": "Theatre and events; a museum column would collide with Government."
+        },
+        {
+          "meaning": "Government & Economy",
+          "today": "—",
+          "candidates": [
+            "tabler:scale",
+            "lucide:landmark"
+          ],
+          "reading": "A balance: weighing, law, budget. Columns already mean 'publisher source' (prov-source) in this set, and landmark is 1.7× its weight."
+        },
+        {
+          "meaning": "Other / review needed",
+          "today": "—",
+          "candidates": [
+            "lucide:circle-ellipsis",
+            "tabler:dots-circle-horizontal"
+          ],
+          "reading": "Not yet sorted; the ? shape is already the help icon."
+        }
+      ]
+    }
+  ]
+}

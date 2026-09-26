@@ -111,7 +111,8 @@ const out = (o) => console.log(JSON.stringify(o, null, 2));
 function profile(repo) {
   const files = walk(repo);
   const strokeWidths = [], caps = [], joins = [], construction = [], grids = [], sizes = [], families = new Set();
-  let registry = null, component = null;
+  let registry = null, component = null, wrapper = null;
+  const WRAP_KEYS = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'];
   for (const f of files) {
     const src = fs.readFileSync(f, 'utf8');
     const rel = path.relative(repo, f);
@@ -122,6 +123,10 @@ function profile(repo) {
     if ((frags.length >= 5 || ownModule) && (!registry || ownModule || frags.length > registry.count)) {
       const exportName = src.match(/(?:export\s+)?const (\w+)\s*=\s*{/)?.[1]; // the map need not be exported (apply's PATHS is not)
       registry = { file: rel, export: exportName, count: frags.length, names: frags.map((m) => m[1]) };
+      // the function that wraps the fragments may set fill/stroke defaults on <svg> (e.g. fill="none" stroke-width="1.5")
+      const w = attrs(src.match(/<svg\b([^>]*\bviewBox="0 0 \d+(?:\.\d+)? \d+(?:\.\d+)?"[^>]*)>/)?.[1] ?? '');
+      const picked = Object.fromEntries(WRAP_KEYS.filter((k) => w[k] && !w[k].includes('${')).map((k) => [k, w[k]]));
+      wrapper = Object.keys(picked).length ? picked : null;
     }
     const vb = [...src.matchAll(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/g)];
     vb.forEach((m) => grids.push(+m[1]));
@@ -129,13 +134,15 @@ function profile(repo) {
     if (!component && /^icon\.\w+$/i.test(path.basename(f)) && vb.length >= 3) component = { file: rel, grid: Number(mode(vb.map((m) => m[1]))), pattern: 'inline-svg-switch', svg_count: vb.length };
     for (const m of src.matchAll(/<Icon\b[^>]*size="([^"]+)"/g)) sizes.push(m[1]);
     const bodies = frags.length ? frags.map((m) => m[2]) : [...src.matchAll(/<svg[\s\S]*?<\/svg>/g)].map((m) => m[0]);
+    const inherit = frags.length && registry?.file === rel && wrapper ? wrapper : {};
     for (const b of bodies) for (const el of elements(b)) {
       if (!SHAPES.includes(el.name)) continue;
-      const a = el.a;
-      if (a['stroke-width']) strokeWidths.push(+a['stroke-width']);
-      if (a['stroke-linecap']) caps.push(a['stroke-linecap']);
-      if (a['stroke-linejoin']) joins.push(a['stroke-linejoin']);
-      construction.push(a.fill === 'none' || a['stroke-width'] ? 'stroke' : 'fill');
+      const a = { ...inherit, ...el.a };
+      const stroked = (a.fill === 'none' || a['stroke-width']) && a.stroke !== 'none';
+      if (stroked && a['stroke-width']) strokeWidths.push(+a['stroke-width']);
+      if (stroked && a['stroke-linecap']) caps.push(a['stroke-linecap']);
+      if (stroked && a['stroke-linejoin']) joins.push(a['stroke-linejoin']);
+      construction.push(stroked ? 'stroke' : 'fill');
     }
   }
   // an imported library is the convention when the repo has no registry of its own: its grammar is the family's
@@ -173,7 +180,9 @@ function profile(repo) {
       stroke_width_at_24: sw ? +((sw / grid) * 24).toFixed(2) : null,
       linecap: mode(caps), linejoin: mode(joins),
       construction: { stroke_shapes: nStroke, fill_shapes: construction.length - nStroke, dominant: !construction.length ? null : nStroke >= construction.length / 2 ? 'stroke' : 'fill' },
-      fill_convention: registry ? 'fill shapes carry stroke="none"; stroke shapes carry fill="none"; colour inherited from <svg>' : 'currentColor',
+      fill_convention: wrapper?.fill === 'none' ? 'stroke inherited from <svg> (no per-shape stroke attributes); fill shapes carry fill="currentColor" stroke="none"'
+        : registry ? 'fill shapes carry stroke="none"; stroke shapes carry fill="none"; colour inherited from <svg>' : 'currentColor',
+      wrapper,
       render_sizes: [...new Set(sizes.length ? sizes : render ? [String(render)] : [])].sort((a, b) => a - b),
       // DESIGN.md stroke rule, in px at the render size and in grid units; adapt clamps to it when no stroke_width is measured
       stroke_px_range: intent.stroke_px ?? null, render_px: render,
@@ -236,6 +245,8 @@ function scaleAttrs(a, k) {
   if (a.points) a.points = a.points.trim().split(/[\s,]+/).map((v) => +(+v * k).toFixed(2)).join(' ');
   if (a.d) a.d = svgpath(a.d).scale(k).round(2).toString();
 }
+// the host <svg> attributes a fragment renders inside: the repo's wrapper, else fill+stroke inherited (the <Icon> convention)
+const hostAttrs = (w) => w ? Object.entries({ fill: 'currentColor', stroke: 'currentColor', ...w }).map(([k, v]) => `${k}="${v}"`).join(' ') : 'fill="currentColor" stroke="currentColor"';
 async function adapt(id, prof) {
   const [p, n] = id.split(':');
   const data = await iconData(p, [n]);
@@ -257,20 +268,24 @@ async function adapt(id, prof) {
     for (const c of ['fill', 'stroke', 'color', 'stroke-width', 'stroke-linecap', 'stroke-linejoin']) delete a[c];
     // measured repo stroke wins; otherwise keep the source stroke, clamped to the DESIGN.md range
     const sw = t.stroke_width ?? (src.sw && t.stroke_range ? Math.min(Math.max(src.sw, t.stroke_range[0]), t.stroke_range[1]) : src.sw) ?? t.grid / 16;
-    if (isStroke) Object.assign(a, { fill: 'none', 'stroke-linecap': t.linecap || src.cap || 'round', 'stroke-linejoin': t.linejoin || src.join || 'round', 'stroke-width': String(+sw.toFixed(3)) });
+    if (t.wrapper?.fill === 'none') { // host <svg> carries fill="none" + stroke defaults: stroke shapes stay bare
+      if (isStroke) { if (t.wrapper['stroke-width'] && +t.wrapper['stroke-width'] !== +sw.toFixed(3)) a['stroke-width'] = String(+sw.toFixed(3)); }
+      else Object.assign(a, { fill: 'currentColor', stroke: 'none' });
+    } else if (isStroke) Object.assign(a, { fill: 'none', 'stroke-linecap': t.linecap || src.cap || 'round', 'stroke-linejoin': t.linejoin || src.join || 'round', 'stroke-width': String(+sw.toFixed(3)) });
     else a.stroke = 'none';
     return `<${name} ${Object.entries(a).map(([kk, v]) => `${kk}="${v}"`).join(' ')}/>`;
   });
-  const isStroke = outEls.some((e) => e.includes('fill="none"'));
-  const outSw = outEls.join('').match(/stroke-width="([\d.]+)"/)?.[1];
+  const isStroke = t.wrapper?.fill === 'none' ? outEls.some((e) => !e.includes('stroke="none"')) : outEls.some((e) => e.includes('fill="none"'));
+  const outSw = outEls.join('').match(/stroke-width="([\d.]+)"/)?.[1] ?? t.wrapper?.['stroke-width'];
   ops.push(isStroke ? `normalize strokes → width ${outSw}${t.stroke_width ? '' : t.stroke_range ? ` (source stroke clamped to DESIGN.md ${t.stroke_range.join('–')})` : ' (source stroke kept)'}, caps ${t.linecap ?? 'source'}, joins ${t.linejoin ?? 'source'}` : 'fill shapes: drop hard-coded colour, add stroke="none" (repo convention)');
   ops.push('remove colour attributes (colour inherited from <Icon>)');
   // mirror the host component (fill+stroke inherited) so svgo does not strip "useless" stroke attrs
-  const wrapped = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.grid} ${t.grid}" fill="currentColor" stroke="currentColor">${outEls.join('')}</svg>`;
+  const host = hostAttrs(t.wrapper);
+  const wrapped = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.grid} ${t.grid}" ${host}>${outEls.join('')}</svg>`;
   const opt = optimize(wrapped, { multipass: true, plugins: [{ name: 'preset-default', params: { overrides: { convertShapeToPath: false, mergePaths: false, removeUnknownsAndDefaults: false, moveElemsAttrsToGroup: false, collapseGroups: false } } }] }).data;
   ops.push('svgo (preset-default; keep primitives, keep per-shape attributes)');
   const fragment = opt.replace(/^<svg[^>]*>|<\/svg>$/g, '');
-  return { id, fragment, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.grid} ${t.grid}" fill="currentColor" stroke="currentColor">${fragment}</svg>`, operations: ops, source_body: ic.body, source_grid: srcGrid };
+  return { id, fragment, svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t.grid} ${t.grid}" ${host}>${fragment}</svg>`, operations: ops, source_body: ic.body, source_grid: srcGrid };
 }
 
 // ---------- validate ----------
@@ -295,7 +310,8 @@ function validate(fragment, prof) {
   const pad = Math.min(minX, minY, t.grid - maxX, t.grid - maxY);
   const sws = els.map((e) => +e.a['stroke-width']).filter(Boolean);
   if (t.stroke_width && sws.some((s) => s !== t.stroke_width)) issues.push('stroke width differs from profile');
-  els.forEach((e) => { if (e.a.fill === 'none' && !e.a['stroke-width']) issues.push(`stroke shape <${e.name}> lacks stroke-width`); if (e.a.fill !== 'none' && e.a.stroke !== 'none' && t.fill_convention.startsWith('fill shapes')) issues.push(`fill shape <${e.name}> lacks stroke="none"`); });
+  if (t.wrapper) els.forEach((e) => { if (e.a.fill && e.a.fill !== 'none' && e.a.stroke !== 'none') issues.push(`fill shape <${e.name}> lacks stroke="none" (would be outlined by the host stroke)`); });
+  else els.forEach((e) => { if (e.a.fill === 'none' && !e.a['stroke-width']) issues.push(`stroke shape <${e.name}> lacks stroke-width`); if (e.a.fill !== 'none' && e.a.stroke !== 'none' && t.fill_convention.startsWith('fill shapes')) issues.push(`fill shape <${e.name}> lacks stroke="none"`); });
   // Aicher-style grammar signal (report only): share of straight segments on 0/45/90° directions
   let straight = 0, ortho45 = 0;
   for (const { a } of els) if (a.d) { let px = 0, py = 0; svgpath(a.d).abs().unshort().iterate((sg, i, x, y) => { const c = sg[0]; let nx = x, ny = y;
@@ -340,8 +356,8 @@ async function addIcon(id, name, prof) {
 }
 
 // ---------- differ (différance check: coherent with siblings, distinct from each sibling and from the generic default) ----------
-function mask(fragment, grid, px = 48) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" width="${px}" height="${px}" fill="#000" stroke="#000">${fragment}</svg>`;
+function mask(fragment, grid, px = 48, wrapper = null) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid} ${grid}" width="${px}" height="${px}" color="#000" ${hostAttrs(wrapper)}>${fragment}</svg>`;
   const rgba = new Resvg(svg, { fitTo: { mode: 'width', value: px } }).render().pixels;
   const m = new Uint8Array(px * px); for (let i = 0; i < m.length; i++) m[i] = rgba[i * 4 + 3] > 96 ? 1 : 0; return m;
 }
@@ -353,15 +369,15 @@ async function siblings(prof) {
   return [...src.matchAll(/['"]?([\w-]+)['"]?\s*:\s*`([\s\S]*?)`/g)].map((m) => ({ name: m[1], fragment: m[2] }));
 }
 async function differ(id, prof) {
-  const t = prof.icon_system, a = await adapt(id, prof), cand = mask(a.fragment, t.grid);
+  const t = prof.icon_system, a = await adapt(id, prof), cand = mask(a.fragment, t.grid, 48, t.wrapper);
   const sibs = (await siblings(prof)).filter((s) => !/-logo$/.test(s.name) && s.fragment !== a.fragment);
-  const sibScores = sibs.map((s) => { const m = mask(s.fragment, t.grid); return { name: s.name, iou: +iou(cand, m).toFixed(3), ink: ink(m) }; }).sort((x, y) => y.iou - x.iou);
+  const sibScores = sibs.map((s) => { const m = mask(s.fragment, t.grid, 48, t.wrapper); return { name: s.name, iou: +iou(cand, m).toFixed(3), ink: ink(m) }; }).sort((x, y) => y.iou - x.iou);
   const inkMed = median(sibScores.map((s) => s.ink));
   const concept = id.split(':')[1].replace(/-(fill|bold|duotone|light|thin|regular)$/, '');
   let generic = null;
   for (const gp of ['lucide', 'heroicons', 'tabler']) {
     if (id.startsWith(gp + ':')) continue;
-    try { const g = await adapt(`${gp}:${concept}`, prof); generic = { id: `${gp}:${concept}`, iou: +iou(cand, mask(g.fragment, t.grid)).toFixed(3) }; break; } catch {}
+    try { const g = await adapt(`${gp}:${concept}`, prof); generic = { id: `${gp}:${concept}`, iou: +iou(cand, mask(g.fragment, t.grid, 48, t.wrapper)).toFixed(3) }; break; } catch {}
   }
   const inkRatio = inkMed ? +(ink(cand) / inkMed).toFixed(2) : null;
   const notes = [];
@@ -498,8 +514,8 @@ function walkAll(dir, re, out = []) {
 }
 const resolveVar = (v, tokens, depth = 0) => typeof v !== 'string' || depth > 5 ? v : v.replace(/var\(--([\w-]+)(?:,\s*([^)]+))?\)/g, (_, k, fb) => resolveVar(tokens[k] ?? fb ?? '#000', tokens, depth + 1));
 // optical stroke thickness in px at the render size, for any construction: 2·area / perimeter of the rendered ink
-function strokePx(fragment, grid, px) {
-  const ss = 8, n = px * ss, m = mask(fragment, grid, n);
+function strokePx(fragment, grid, px, wrapper = null) {
+  const ss = 8, n = px * ss, m = mask(fragment, grid, n, wrapper);
   // perimeter by Cauchy–Crofton: ink/background transitions along rows and columns × π/4 (unbiased over edge angles)
   let area = 0, cross = 0;
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const i = y * n + x; area += m[i];
@@ -522,7 +538,7 @@ async function sheet(repo, prof, proposal, outFile) {
         try {
           const a = await adapt(id, prof), v = validate(a.fragment, prof), p = id.split(':')[0];
           cols[p] ??= (await collections([p]))[p];
-          const col = cols[p], sp = strokePx(a.fragment, t.grid, c.size);
+          const col = cols[p], sp = strokePx(a.fragment, t.grid, c.size, t.wrapper);
           const notes = v.issues.slice();
           if (range && sp && (sp < range[0] - 0.15 || sp > range[1] + 0.15)) notes.push(`stroke ≈${sp}px at ${c.size}px, DESIGN.md asks ${range.join('–')}px`);
           cands.push({ id, fragment: a.fragment, ok: v.ok, stroke_px: sp, license: col?.license?.spdx ?? '?', set: col?.name ?? p, notes });
@@ -534,7 +550,7 @@ async function sheet(repo, prof, proposal, outFile) {
     // différance inside the family: the proposed (first) candidates must share weight and stay distinguishable
     // A role marked "frame": true intends a shared frame (Isotype's works in a series, e.g. one circle for all states):
     // the frame is the ink a strict majority of members share, and only the marks (ink minus frame) are compared.
-    const lead = items.map((it) => it.cands.find((c) => c.fragment)).map((c) => c && { c, m: mask(c.fragment, t.grid) });
+    const lead = items.map((it) => it.cands.find((c) => c.fragment)).map((c) => c && { c, m: mask(c.fragment, t.grid, 48, t.wrapper) });
     const ms = lead.filter(Boolean).map((l) => l.m), inkMed = median(ms.map(ink));
     let frame = new Uint8Array(ms[0]?.length ?? 0);
     if (role.frame && ms.length >= 3) for (let k = 0; k < frame.length; k++) { let c = 0; for (const m of ms) c += m[k]; frame[k] = c * 2 > ms.length ? 1 : 0; }
@@ -556,7 +572,7 @@ async function sheet(repo, prof, proposal, outFile) {
   }
   const tile = (c, ctx, big) => {
     const sz = big ? ctx.size : Math.round(ctx.size * 0.9), box = ctx.box ?? sz + 16;
-    const inner = c.fragment ? `<svg viewBox="0 0 ${t.grid} ${t.grid}" width="${sz}" height="${sz}" fill="currentColor" stroke="currentColor" aria-hidden="true">${c.fragment}</svg>` : `<span class="err">✕</span>`;
+    const inner = c.fragment ? `<svg viewBox="0 0 ${t.grid} ${t.grid}" width="${sz}" height="${sz}" ${hostAttrs(t.wrapper)} aria-hidden="true">${c.fragment}</svg>` : `<span class="err">✕</span>`;
     return `<div class="swatch" style="width:${box}px;height:${box}px;border-radius:${ctx.radius}px;background:${esc(resolveVar(ctx.background, tokens))};color:${esc(resolveVar(ctx.color, tokens))}">${inner}</div>`;
   };
   const glyph = (g, ctx) => `<div class="swatch" style="width:${ctx.box ?? ctx.size + 16}px;height:${ctx.box ?? ctx.size + 16}px;border-radius:${ctx.radius}px;background:${esc(resolveVar(ctx.background, tokens))};color:${esc(resolveVar(ctx.color, tokens))};font:${ctx.size}px/1 ${esc(font)}">${esc(g ?? '—')}</div>`;
@@ -648,14 +664,26 @@ function canonical(prefix, n) { const s = localSet(prefix); let k = n, h = 0; wh
 const IMPORT = /^import\b[\s\S]*?\bfrom\s*['"][^'"]+['"];?[ \t]*\n|^import\s*['"][^'"]+['"];?[ \t]*\n/gm;
 const insertImport = (src, imp) => { const last = [...src.matchAll(IMPORT)].pop(); return last ? src.slice(0, last.index + last[0].length) + imp + src.slice(last.index + last[0].length) : imp + src; };
 async function apply(repo, prof, decision, dryRun) {
-  const t = prof.icon_system, mod = decision.module ?? 'src/ui/icons.ts', fn = decision.function ?? 'icon';
+  const t = prof.icon_system; let mod = decision.module ?? 'src/ui/icons.ts'; const fn = decision.function ?? 'icon';
   // target: the repo's own imported library when every chosen icon comes from its family, else a generated module
   const lib = t.library, lspec = lib && libSpec(lib.package);
-  const target = decision.target ?? (lib && Object.values(decision.icons).every((d) => d.source.startsWith(lib.prefix + ':')) ? 'library' : 'module');
+  // "call" means the repo already has its own icon function and registry: use it, generate and copy nothing,
+  // e.g. { "module": "src/ui/icons.ts", "call": "icon('$name', { size: $size })" }
+  const target = decision.target ?? (decision.call ? 'registry' : lib && Object.values(decision.icons ?? {}).every((d) => d.source.startsWith(lib.prefix + ':')) ? 'library' : 'module');
   if (target === 'library' && !lspec) throw new Error('decision targets a library, but the profile found none');
+  if (target === 'registry') {
+    const regFile = path.join(repo, decision.module ?? t.registry?.file ?? mod);
+    if (!fs.existsSync(regFile) || !decision.call) throw new Error('registry target needs "call" and an existing "module" (or a registry in the profile)');
+    const regSrc = fs.readFileSync(regFile, 'utf8');
+    const missing = [...new Set(decision.replace.map((r) => r.icon))].filter((n) => !new RegExp(`['"]?${n.replace(/[-]/g, '\\-')}['"]?\\s*:\\s*\``).test(regSrc));
+    if (missing.length) return { applied: false, failed: missing.map((name) => ({ name, issues: [`not in ${path.relative(repo, regFile)}: add it first (pikto add)`] })) };
+    decision = { ...decision, module: path.relative(repo, regFile), icons: Object.fromEntries(decision.replace.map((r) => [r.icon, { source: 'registry' }])) };
+    mod = decision.module;
+  }
   // 1. adapt + validate every icon; any failure stops before anything is written
   const icons = {}, failed = [];
   for (const [name, d] of Object.entries(decision.icons)) {
+    if (target === 'registry') { icons[name] = { ...d }; continue; } // already in the repo's own set
     const a = await adapt(d.source, prof), v = validate(a.fragment, prof);
     if (!v.ok) failed.push({ name, source: d.source, issues: v.issues }); else icons[name] = { ...d, fragment: a.fragment, operations: a.operations };
     if (icons[name] && target === 'library') { const [p, n] = d.source.split(':'); icons[name].component = lspec.toComp(canonical(p, n)); }
@@ -691,7 +719,9 @@ async function apply(repo, prof, decision, dryRun) {
       }
       if (c !== "'" && c !== '"' && c !== '`') { if (!ASCII.test(g)) left.push({ at, glyph: g, reason: `in ${c === 'k' ? 'a comment' : 'code'}` }); continue; }
       if (ASCII.test(g) && !((prev === '>' || prev === c) && (next === '<' || next === c))) continue;
-      const expr = `${call}('${rule.icon}'${rule.size ? `, ${rule.size}` : ''})`;
+      const expr = target === 'registry'
+        ? decision.call.replace(new RegExp(`^${fn}\\b`), call).replaceAll('$name', rule.icon).replaceAll('$size', String(rule.size ?? 16))
+        : `${call}('${rule.icon}'${rule.size ? `, ${rule.size}` : ''})`;
       let from = i, to = i + g.length, text;
       if (c === '`') text = `\${${expr}}`;
       else if (prev === c && next === c) { from--; to++; text = expr; } // the literal is exactly the glyph
@@ -718,7 +748,7 @@ async function apply(repo, prof, decision, dryRun) {
     writes[rel] = out;
   }
   // 3. the module: plain SVG string functions, colour from currentColor, no dependency
-  const cols = await collections([...new Set(Object.values(icons).map((d) => d.source.split(':')[0]))]);
+  const cols = target === 'registry' ? {} : await collections([...new Set(Object.values(icons).map((d) => d.source.split(':')[0]))]);
   const body = Object.entries(icons).map(([n, d]) => { const [p] = d.source.split(':'); return `  // ${d.source} (${cols[p]?.name} ${cols[p]?.version ?? ''}, ${cols[p]?.license?.spdx}): ${d.meaning ?? n}\n  '${n}': \`${d.fragment}\`,`; }).join('\n');
   const module = `// Generated by pikto apply. Do not edit path data by hand: sources, licenses and operations are in .pikto/provenance.json.
 // Colour comes from currentColor, so existing state classes (.source-state.ready, .claim-rejected, …) keep working.
@@ -740,11 +770,11 @@ export const ${fn} = (name: IconName, size = 16): string =>
     const base = { name: n, source: d.source, set: col?.name, license: col?.license, author: col?.author, meaning: d.meaning, reading: d.reading ?? null, permission: d.permission ?? null, added: today };
     return target === 'library' ? { ...base, component: d.component, package: lib.package, package_version: libVersion ?? null, operations: ['none: rendered by the repo\'s own library, no geometry copied'] }
       : { ...base, version: col?.version, via: col?.source ?? 'api.iconify.design', operations: d.operations }; }) };
-  writes['.pikto/provenance.json'] = JSON.stringify(prov, null, 2) + '\n';
+  if (target !== 'registry') writes['.pikto/provenance.json'] = JSON.stringify(prov, null, 2) + '\n'; // registry icons are the repo's own
   writes['.pikto/audit.json'] = JSON.stringify({ module: target === 'library' ? lib.package : mod, allow: (decision.skip ?? []).map((s) => ({ file: s.at.split(':')[0], glyph: s.glyph, reason: s.reason })) }, null, 2) + '\n';
   const dmFile = path.join(repo, 'DESIGN.md');
   let design = null;
-  if (fs.existsSync(dmFile) && !aud.intent.has_iconography_section) {
+  if (target !== 'registry' && fs.existsSync(dmFile) && !aud.intent.has_iconography_section) {
     const sets = [...new Set(Object.values(icons).map((d) => { const p = d.source.split(':')[0]; return `${cols[p]?.name} (${cols[p]?.license?.spdx})`; }))].join(', ');
     const rows = Object.entries(icons).map(([n, d]) => `| \`${n}\` | ${d.meaning ?? ''} | \`${d.source}\` |`).join('\n');
     const src = target === 'library' ? `- Source: ${lib.package} components only (${sets}); no second library, no pasted SVG.\n` : `- Source: ${sets}, adapted by pikto to a ${t.grid} grid. Module: \`${mod}\`, \`${fn}(name, size)\` returns an SVG string; colour is \`currentColor\`.\n`;

@@ -1,0 +1,31 @@
+{
+  "module": "src/ui/icons.ts",
+  "call": "icon('$name', { size: $size })",
+  "replace": [
+    { "glyph": "⌕", "icon": "discover", "size": 18, "at": ["src/main.ts:97"] },
+    { "glyph": "⌘", "icon": "build", "size": 18, "at": ["src/main.ts:98"] },
+    { "glyph": "▣", "icon": "materialize", "size": 18, "at": ["src/main.ts:99"] },
+    { "glyph": "?", "icon": "help", "size": 18, "at": ["src/main.ts:101"] },
+    { "glyph": "↑", "icon": "up", "size": 14, "at": ["src/main.ts:120"] },
+    { "glyph": "✓", "icon": "confirmed", "size": 14, "at": ["src/main.ts:363", "src/main.ts:373"] },
+    { "glyph": "△", "icon": "weak", "size": 14, "at": ["src/main.ts:363"] },
+    { "glyph": "+", "icon": "unchecked", "size": 14, "at": ["src/main.ts:369"] },
+    { "glyph": "×", "icon": "evidence-missing", "size": 14, "at": ["src/main.ts:372"] },
+    { "glyph": "✓", "icon": "check", "size": 12, "at": ["src/main.ts:378"] },
+    { "glyph": "△", "icon": "add", "size": 12, "at": ["src/main.ts:378"] },
+    { "glyph": "✕", "icon": "evidence-missing", "size": 12, "at": ["src/main.ts:378"] },
+    { "glyph": "✓", "icon": "check", "size": 14, "at": ["src/ui/graph.ts:202"] },
+    { "glyph": "+", "icon": "add", "size": 14, "at": ["src/ui/graph.ts:202"] },
+    { "glyph": "↗", "icon": "external", "size": 12, "at": ["src/ui/panels.ts:191", "src/ui/panels.ts:202"] },
+    { "glyph": "✓", "icon": "confirmed", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "✕", "icon": "rejected", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "△", "icon": "weak", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "?", "icon": "evidence-missing", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "+", "icon": "unchecked", "size": 12, "at": ["src/ui/result.ts:78"] }
+  ],
+  "skip": [
+    { "at": "src/ui/icons.ts:133", "glyph": "⌕", "reason": "catalogue note text naming the glyphs the stage icons replace" },
+    { "at": "src/ui/icons.ts:133", "glyph": "⌘", "reason": "catalogue note text" },
+    { "at": "src/ui/icons.ts:133", "glyph": "▣", "reason": "catalogue note text" }
+  ]
+}
