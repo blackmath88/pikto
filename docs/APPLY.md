@@ -38,7 +38,7 @@ Result:
 - **4 sites left as text, with reasons:** two date-range arrows, a ↔ in a sentence, and a ✓ inside a D3 SVG `<text>`.
 - **Checks:** `tsc --noEmit` clean, 189/189 tests pass, `audit --check` shows no drift.
 
-![before / after](apply-before-after.png)
+![before / after, full click-path](opendata-explorer-before-after.png)
 
 ## Limits
 - The lexer doesn't understand regex literals or JSX text. Framework templates (`.vue`, `.svelte`, `.astro`) need their own write target.
