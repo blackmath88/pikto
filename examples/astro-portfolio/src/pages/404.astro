@@ -1,0 +1,18 @@
+---
+import Hero from '../components/Hero.astro';
+import Icon from '../components/Icon.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Not Found" description="404 Error — this page was not found">
+	<Hero title="Page Not Found" tagline="Not found">
+		<span class="lost-icon"><Icon icon="compass" color="var(--accent-regular)" size="4rem" gradient /></span>
+	</Hero>
+</BaseLayout>
+
+<style>
+	.lost-icon {
+		display: flex;
+		justify-content: center;
+	}
+</style>

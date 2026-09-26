@@ -1,0 +1,17 @@
+{
+  "name": "pikto",
+  "version": "0.1.0",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "Repo-aware icon conformance for coding agents (Iconify + SVGO + svgpath)",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "svgo": "^4.1.0",
+    "svgpath": "^2.6.0"
+  },
+  "type": "module",
+  "bin": {
+    "pikto": "bin/pikto.mjs"
+  }
+}

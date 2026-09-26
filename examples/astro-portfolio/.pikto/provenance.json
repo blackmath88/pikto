@@ -1,0 +1,28 @@
+{
+  "icons": [
+    {
+      "name": "compass",
+      "source": "ph:compass",
+      "set": "Phosphor",
+      "version": "2.1.1",
+      "license": {
+        "title": "MIT",
+        "spdx": "MIT",
+        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
+      },
+      "author": {
+        "name": "Phosphor Icons",
+        "url": "https://github.com/phosphor-icons/core"
+      },
+      "source_url": "https://api.iconify.design/ph/compass.svg",
+      "operations": [
+        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
+        "remove colour attributes (colour inherited from <Icon>)",
+        "svgo (preset-default; keep primitives, keep per-shape attributes)"
+      ],
+      "added": "2026-09-26",
+      "reading": "404 differs from its nearest peers (empty state, error) as a wrong turn: the visitor is lost, not failed.",
+      "permission": "Site already marks sections with large gradient icons (Skills.astro); the 404 hero was the only state without a marker."
+    }
+  ]
+}
