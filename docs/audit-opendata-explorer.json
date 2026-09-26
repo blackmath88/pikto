@@ -1,0 +1,186 @@
+{
+  "repo": "/tmp/ode",
+  "intent": {
+    "file": "DESIGN.md",
+    "icon_rules": [
+      "Side rail: 18px stroke glyphs in 48×48px hit targets.",
+      "Iconography: geometric, minimalist, consistent 1–1.5px stroke."
+    ],
+    "has_iconography_section": false,
+    "stroke_px": [
+      1,
+      1.5
+    ],
+    "glyph_px": 18
+  },
+  "summary": {
+    "icon_glyphs": 24,
+    "typographic": 3,
+    "roles": 10,
+    "issues": 2
+  },
+  "issues": [
+    "\"available\" is drawn as △ / ○",
+    "DESIGN.md asks for 1–1.5px stroke icons; 24 Unicode glyphs render with font-dependent weight"
+  ],
+  "vocabulary": {
+    "↔": [
+      "?"
+    ],
+    "⌕": [
+      "discover"
+    ],
+    "⌘": [
+      "build"
+    ],
+    "▣": [
+      "materialize"
+    ],
+    "✓": [
+      "locally_available",
+      "?",
+      "selected",
+      "covered",
+      "confirmed"
+    ],
+    "△": [
+      "?",
+      "available",
+      "partial"
+    ],
+    "×": [
+      "?"
+    ],
+    "✕": [
+      "?",
+      "not_in_catalogue",
+      "missing",
+      "rejected"
+    ],
+    "→": [
+      "?"
+    ],
+    "↗": [
+      "?"
+    ],
+    "○": [
+      "available"
+    ]
+  },
+  "roles": {
+    "src/compatibility.ts": {
+      "glyphs": {
+        "↔": [
+          "?"
+        ]
+      },
+      "sites": 1
+    },
+    "rail-icon": {
+      "glyphs": {
+        "⌕": [
+          "discover"
+        ],
+        "⌘": [
+          "build"
+        ],
+        "▣": [
+          "materialize"
+        ]
+      },
+      "sites": 3
+    },
+    "source-state ${role.localStatus === 'locally_available' ? 'ready' : 'weak'}": {
+      "glyphs": {
+        "✓": [
+          "locally_available"
+        ],
+        "△": [
+          "?"
+        ]
+      },
+      "sites": 2
+    },
+    "source-state missing": {
+      "glyphs": {
+        "×": [
+          "?"
+        ]
+      },
+      "sites": 1
+    },
+    "source-state ready": {
+      "glyphs": {
+        "✓": [
+          "?"
+        ]
+      },
+      "sites": 1
+    },
+    "input-${input.status}": {
+      "glyphs": {
+        "✓": [
+          "selected"
+        ],
+        "△": [
+          "available"
+        ],
+        "✕": [
+          "?"
+        ]
+      },
+      "sites": 3
+    },
+    "src/ui/graph.ts": {
+      "glyphs": {
+        "✓": [
+          "?"
+        ]
+      },
+      "sites": 1
+    },
+    "src/ui/panels.ts": {
+      "glyphs": {
+        "→": [
+          "?"
+        ],
+        "↗": [
+          "?"
+        ],
+        "✓": [
+          "covered"
+        ],
+        "○": [
+          "available"
+        ],
+        "✕": [
+          "not_in_catalogue",
+          "missing"
+        ]
+      },
+      "sites": 8
+    },
+    "detail-links": {
+      "glyphs": {
+        "↗": [
+          "?"
+        ]
+      },
+      "sites": 1
+    },
+    "src/ui/result.ts": {
+      "glyphs": {
+        "✓": [
+          "confirmed"
+        ],
+        "✕": [
+          "rejected"
+        ],
+        "△": [
+          "partial"
+        ]
+      },
+      "sites": 3
+    }
+  }
+}

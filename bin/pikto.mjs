@@ -275,11 +275,54 @@ async function differ(id, prof) {
   return { id, visual_weight_vs_siblings: inkRatio, nearest_siblings: sibScores.slice(0, 3).map(({ name, iou }) => ({ name, iou })), generic_default: generic, notes, verdict: notes.length ? 'review' : 'coherent-and-distinct' };
 }
 
+// ---------- audit (intent = DESIGN.md, evidence = code) ----------
+const GLYPH = /[\u2190-\u21FF\u2300-\u23FF\u25A0-\u25FF\u2600-\u27BF\u2B00-\u2BFF\u00D7\u2715\u2713\u{1F300}-\u{1FAFF}]/gu;
+const NOT_ICON = /[\u00B7\u2022\u2026]/; // middle dot, bullet, ellipsis are typography
+function audit(repo) {
+  const intent = {};
+  const dm = ['DESIGN.md', 'design.md'].map((n) => path.join(repo, n)).find((p) => fs.existsSync(p));
+  if (dm) { const t = fs.readFileSync(dm, 'utf8');
+    intent.file = path.basename(dm);
+    intent.icon_rules = t.split('\n').filter((l) => /icon|glyph|pictogram/i.test(l) && !/^\s*[\w-]+:\s/.test(l)).map((l) => l.replace(/^[-*\s]+/, '').trim());
+    intent.has_iconography_section = /^##\s+Iconography/im.test(t);
+    const rules = intent.icon_rules.join(' '); const px = rules.match(/(\d+(?:\.\d+)?)\s*[–-]\s*(\d+(?:\.\d+)?)px stroke/) || rules.match(/()()(\d+(?:\.\d+)?)px stroke(?! glyph)/);
+    if (px) intent.stroke_px = px[3] ? [+px[3], +px[3]] : [+px[1], +px[2]];
+    const sz = intent.icon_rules.join(' ').match(/(\d+)px (?:stroke )?glyph/); if (sz) intent.glyph_px = +sz[1]; }
+  const uses = [];
+  for (const f of walk(repo)) {
+    if (!/\.(tsx?|jsx?|mjs|html|astro|vue|svelte)$/.test(f) || /\.test\./.test(f)) continue;
+    const rel = path.relative(repo, f);
+    fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*)/.test(line)) return;
+      for (const m of line.matchAll(GLYPH)) {
+        const g = m[0], at = m.index; if (NOT_ICON.test(g)) continue;
+        const before = line.slice(Math.max(0, at - 140), at), after = line.slice(at + 1, at + 60);
+        const cls = [...before.matchAll(/class="([^"]+)"/g)].pop()?.[1] ?? null;
+        const cond = [...before.matchAll(/===\s*'([\w-]+)'\s*\?\s*'?$/g)].pop()?.[1] ?? [...before.matchAll(/'([\w-]+)'\s*\?\s*'[^']*$/g)].pop()?.[1];
+        const label = after.match(/^\s*([A-Za-z][\w -]{1,24})/)?.[1]?.trim() ?? after.match(/<span>([^<]{1,24})</)?.[1] ?? null;
+        const inText = /[A-Za-z]\s?$/.test(before.replace(/<[^>]*>$/, '')) && /^\s?[A-Za-z]/.test(after);
+        uses.push({ glyph: g, file: rel, line: i + 1, role: cls, meaning: (cond || label || '').toLowerCase() || null, kind: inText ? 'typographic' : 'icon' });
+      }
+    });
+  }
+  const icons = uses.filter((u) => u.kind === 'icon');
+  const byMeaning = {}, byGlyph = {};
+  for (const u of icons) { if (u.meaning) (byMeaning[u.meaning] ??= new Set()).add(u.glyph); (byGlyph[u.glyph] ??= new Set()).add(u.meaning ?? '?'); }
+  const issues = [];
+  for (const [m, gs] of Object.entries(byMeaning)) if (gs.size > 1) issues.push(`"${m}" is drawn as ${[...gs].join(' / ')}`);
+  const vocabulary = Object.fromEntries(Object.entries(byGlyph).map(([g, ms]) => [g, [...ms]]));
+  if (icons.length && intent.stroke_px) issues.push(`DESIGN.md asks for ${intent.stroke_px.join('–')}px stroke icons; ${icons.length} Unicode glyphs render with font-dependent weight`);
+  const roles = {};
+  for (const u of icons) { const r = (roles[u.role ?? `${u.file}`] ??= { glyphs: {}, sites: 0 }); r.sites++; r.glyphs[u.glyph] = [...new Set([...(r.glyphs[u.glyph] ?? []), u.meaning ?? '?'])]; }
+  return { repo: path.resolve(repo), intent, summary: { icon_glyphs: icons.length, typographic: uses.length - icons.length, roles: Object.keys(roles).length, issues: issues.length }, issues, vocabulary, roles, uses };
+}
+
 // ---------- CLI ----------
 const [cmd, x, y] = args;
 const loadProfile = () => JSON.parse(fs.readFileSync(flag('profile', '.pikto/profile.json'), 'utf8'));
 try {
-  if (cmd === 'profile') out(profile(x || '.'));
+  if (cmd === 'audit') { const a = audit(x || '.'); out(args.includes('--full') ? a : { ...a, uses: undefined }); }
+  else if (cmd === 'profile') out(profile(x || '.'));
   else if (cmd === 'search') out((await search(x, loadProfile())).slice(0, +flag('limit', 8)).map(({ id, set, license, construction, grid, stroke_ratio, score, why, excluded }) => ({ id, set, license, construction, grid, stroke_ratio, score, why, excluded })));
   else if (cmd === 'adapt') { const p = loadProfile(); const a = await adapt(x, p); out({ ...a, validation: validate(a.fragment, p) }); }
   else if (cmd === 'validate') out(validate(fs.readFileSync(x, 'utf8').replace(/^[\s\S]*?<svg[^>]*>|<\/svg>[\s\S]*$/g, ''), loadProfile()));
@@ -290,6 +333,7 @@ try {
   search  <concept> --profile P      ranked, licence-filtered candidates from Iconify
   adapt   <prefix:name> --profile P  transform to the repo's grid/stroke/colour convention + validation
   validate <file.svg> --profile P    check an SVG against the profile
+  audit   <repo> [--full]           DESIGN.md intent vs icon-like glyphs/SVG in code: roles, inconsistencies
   differ  <id> [id…] --profile P     visual weight vs siblings, confusability, distance from the generic default
   add     <prefix:name> <name> --profile P [--reading "…" --permission "…"]   adapt + validate + write + provenance`);
 } catch (e) { console.error('error:', e.message); process.exit(1); }
