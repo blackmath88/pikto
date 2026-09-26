@@ -1,9 +1,10 @@
 {
-  "repo": "/home/user/blackmath88/opendata-explorer",
+  "repo": "/home/user/opendata-explorer",
   "icon_system": {
     "families": [],
     "registry": null,
     "component": null,
+    "library": null,
     "grid": 24,
     "grid_consistency": null,
     "stroke_width": null,

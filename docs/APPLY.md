@@ -25,7 +25,7 @@
 Rules without `at` apply to every site `audit` classified as an icon. Use `at` when one glyph carries several meanings (△ was both *partial* and *available*).
 
 ## First run: opendata-explorer
-Decision: [decision-opendata-explorer.json](decision-opendata-explorer.json). Patch: [opendata-explorer-icons.patch](opendata-explorer-icons.patch), which applies with `git am`.
+Decision: [decision-opendata-explorer.json](decision-opendata-explorer.json). Landed as [blackmath88/opendata-explorer#11](https://github.com/blackmath88/opendata-explorer/pull/11), re-run from scratch with v0.5: the audit now classifies the 3 prose arrows as typography itself, so the decision only skips the D3 `<text>` ✓. The original patch is kept as [opendata-explorer-icons.patch](opendata-explorer-icons.patch).
 
 Decisions taken from the sheet's open questions:
 - **Build → `ph:stack`**: layers of evidence. Blueprint was too busy at 18px.

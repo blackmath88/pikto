@@ -21,7 +21,7 @@
 2. [x] `sheet` (v0.3, see docs/SHEET.md): contact sheet (HTML) of before → after in the repo's own tokens, with optical stroke, weight and in-family confusability.
 3. [x] `apply` (v0.4, see docs/APPLY.md): write `src/ui/icons.ts` (plain SVG string functions), replace call sites by lexical context, write provenance, append `## Iconography` to DESIGN.md.
 4. [x] `audit --check`: drift check against `.pikto/audit.json` (pre-commit or CI).
-5. Land the patches upstream: docs/opendata-explorer-icons.patch, docs/br-ai-nstorm-icons.patch.
+5. Land the patches upstream: opendata-explorer → [blackmath88/opendata-explorer#11](https://github.com/blackmath88/opendata-explorer/pull/11); br-ai-nstorm → docs/br-ai-nstorm-icons.patch.
 
 ## Later
 - Write targets for `.vue`/`.svelte`/`.astro` templates and JSX text in `apply`
