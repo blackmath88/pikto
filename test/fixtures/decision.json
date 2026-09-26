@@ -1,0 +1,11 @@
+{ "module": "src/ui/icons.ts",
+  "icons": {
+    "discover": { "source": "ph:magnifying-glass", "meaning": "Discover" },
+    "available": { "source": "ph:circle-dashed", "meaning": "available" },
+    "confirmed": { "source": "ph:check-circle", "meaning": "confirmed" },
+    "rejected": { "source": "ph:x-circle", "meaning": "rejected" } },
+  "replace": [
+    { "glyph": "⌕", "icon": "discover", "size": 18 },
+    { "glyph": "△", "icon": "available" }, { "glyph": "○", "icon": "available" },
+    { "glyph": "✕", "icon": "rejected" }, { "glyph": "✓", "icon": "confirmed" } ],
+  "skip": [ { "at": "src/icon.ts:3", "glyph": "✓", "reason": "fixture: left as text" } ] }

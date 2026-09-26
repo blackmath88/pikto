@@ -68,3 +68,31 @@ test('sheet: optical stroke, family frame, missing icons, tokens', () => {
   assert.match(html, /color:#8a5f2d/, 'var() with fallback resolved from repo CSS');
   assert.doesNotMatch(html, /<script/);
 });
+
+test('apply: module, call sites by lexical context, import alias, provenance, DESIGN.md; audit --check', () => {
+  const work = path.join(tmp, 'apply-repo');
+  fs.cpSync(repo, work, { recursive: true });
+  const r = run('apply', work, '--profile', prof, '--decision', path.join(here, 'fixtures', 'decision.json'));
+  assert.equal(r.applied, true);
+  assert.deepEqual(r.unmapped, []);
+  const main = fs.readFileSync(path.join(work, 'src/main.ts'), 'utf8');
+  assert.match(main, /^import \{ icon \} from '\.\/ui\/icons';/m);
+  assert.match(main, /\$\{icon\('discover', 18\)\}/, 'template text → ${…}');
+  assert.match(main, /\? icon\('available'\) : icon\('rejected'\)/, 'whole literal → call');
+  const ic = fs.readFileSync(path.join(work, 'src/icon.ts'), 'utf8');
+  assert.match(ic, /import \{ icon as iconSvg \} from '\.\/ui\/icons';/, 'local `icon` exists → alias');
+  assert.match(ic, /\/\/ ✓ in a comment stays/);
+  assert.match(ic, /`done ✓`/, 'skipped site left as text');
+  assert.match(ic, /'<b>' \+ iconSvg\('rejected'\) \+ ' failed<\/b>'/, 'glyph inside a longer string → concatenation');
+  const mod = fs.readFileSync(path.join(work, 'src/ui/icons.ts'), 'utf8');
+  assert.match(mod, /export const icon = \(name: IconName, size = 16\): string =>/);
+  assert.doesNotMatch(mod, /#[0-9a-f]{3,6}/i, 'no hard-coded colour');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(work, '.pikto/provenance.json'), 'utf8')).icons.length, 4);
+  assert.match(fs.readFileSync(path.join(work, 'DESIGN.md'), 'utf8'), /## Iconography[\s\S]*\| `available` \| available \| `ph:circle-dashed` \|/);
+  assert.equal(run('audit', work, '--check').ok, true);
+  fs.appendFileSync(path.join(work, 'src/main.ts'), "export const later = `<span class=\"state\">✓</span>`;\n");
+  let failed = null;
+  try { run('audit', work, '--check'); } catch (e) { failed = JSON.parse(e.stdout); }
+  assert.equal(failed?.ok, false, 'a new glyph is drift and exits 1');
+  assert.equal(failed.drift[0].glyph, '✓');
+});

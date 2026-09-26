@@ -1,0 +1,45 @@
+{
+  "module": "src/ui/icons.ts",
+  "icons": {
+    "discover":    { "source": "ph:magnifying-glass", "meaning": "Discover stage", "reading": "Search is the literal action of this stage.", "permission": "DESIGN.md: side rail, 18px stroke glyphs; ⌕ was a font-dependent approximation." },
+    "build":       { "source": "ph:stack", "meaning": "Build stage", "reading": "Composing layers of evidence into a plan; blueprint is too busy at 18px.", "permission": "⌘ is the Mac Command key, not Build." },
+    "materialize": { "source": "ph:cube", "meaning": "Materialize stage", "reading": "The plan becomes a concrete object.", "permission": "▣ in the rail; DESIGN.md 1–1.5px stroke." },
+    "legend":      { "source": "ph:info", "meaning": "Provenance legend", "reading": "Opens an explanation, not a question.", "permission": "legendBtn title: What the provenance tags mean." },
+    "confirmed":   { "source": "ph:check-circle", "meaning": "confirmed / covered / selected / locally available", "reading": "Circle family: frame = evidence state, mark = verdict.", "permission": "✓ covered five positive states in three files." },
+    "partial":     { "source": "ph:circle-half", "meaning": "partial claim / locally weak source", "reading": "Half-covered.", "permission": "△ meant both partial and available; split per audit." },
+    "available":   { "source": "ph:circle-dashed", "meaning": "available, not taken up", "reading": "There but not yet in use; the dashed frame is lighter on purpose.", "permission": "○ and △ both drew available." },
+    "rejected":    { "source": "ph:x-circle", "meaning": "rejected / missing", "reading": "Same frame, crossing mark.", "permission": "✕ and × both drew missing." },
+    "unresolved":  { "source": "ph:question", "meaning": "unresolved claim", "reading": "Phosphor's question sits in the same circle frame.", "permission": "result.ts '?' for unresolved." },
+    "proposed":    { "source": "ph:plus-circle", "meaning": "proposed claim / candidate source", "reading": "Something to add; joins the circle family.", "permission": "'+' for proposed claims and national candidates." },
+    "external":    { "source": "ph:arrow-up-right", "meaning": "opens an external source", "reading": "Leaves the app.", "permission": "↗ after link text." }
+  },
+  "replace": [
+    { "glyph": "⌕", "icon": "discover", "size": 18 },
+    { "glyph": "⌘", "icon": "build", "size": 18 },
+    { "glyph": "▣", "icon": "materialize", "size": 18 },
+    { "glyph": "?", "icon": "legend", "size": 18, "at": ["src/main.ts:102"] },
+    { "glyph": "✓", "icon": "confirmed", "size": 14, "at": ["src/main.ts:364", "src/main.ts:374"] },
+    { "glyph": "△", "icon": "partial", "size": 14, "at": ["src/main.ts:364"] },
+    { "glyph": "×", "icon": "rejected", "size": 14, "at": ["src/main.ts:373"] },
+    { "glyph": "+", "icon": "proposed", "size": 14, "at": ["src/main.ts:370"] },
+    { "glyph": "✓", "icon": "confirmed", "size": 12, "at": ["src/main.ts:379", "src/ui/result.ts:78"] },
+    { "glyph": "△", "icon": "available", "size": 12, "at": ["src/main.ts:379"] },
+    { "glyph": "✕", "icon": "rejected", "size": 12, "at": ["src/main.ts:379", "src/ui/result.ts:78"] },
+    { "glyph": "△", "icon": "partial", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "?", "icon": "unresolved", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "+", "icon": "proposed", "size": 12, "at": ["src/ui/result.ts:78"] },
+    { "glyph": "↗", "icon": "external", "size": 12 }
+  ],
+  "skip": [
+    { "at": "src/ui/graph.ts:46", "glyph": "✓", "reason": "SVG <text> inside the D3 zoom-add circle; not HTML, set with .text()" },
+    { "at": "src/ui/panels.ts:182", "glyph": "→", "reason": "typographic: date range in running text" },
+    { "at": "src/ui/panels.ts:228", "glyph": "→", "reason": "typographic: date range in running text" },
+    { "at": "src/compatibility.ts:267", "glyph": "↔", "reason": "typographic: key pair in a sentence" }
+  ],
+  "design_md": {
+    "rules": [
+      "Rail icons render at 18px in the 48×48 hit target; status icons at 12–14px; Phosphor Regular measures ≈1.1px stroke at 18px, inside the 1–1.5px rule.",
+      "Evidence status is one family: every state shares the circle frame and differs only in its inner mark (check, half, dashed, cross, question, plus). Tone comes from the state class, never from the icon."
+    ]
+  }
+}

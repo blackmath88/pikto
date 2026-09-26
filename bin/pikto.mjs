@@ -533,26 +533,148 @@ ${Object.entries(report.sources).map(([id, s]) => `<tr><td><code>${esc(id)}</cod
   return report;
 }
 
+// ---------- apply (the human's pick → icons module, call sites, provenance, DESIGN.md) ----------
+// Input is .pikto/decision.json: icons {name: {source, meaning, reading, permission}}, replace rules
+// [{glyph, icon, size, at?: ["file:line"]}] and skip [{at: "file:line", reason}]. Rules without `at` apply to the
+// sites audit classified as icons; ASCII glyphs ('?', '+') are only replaced at explicit sites and only standalone.
+// A glyph is only replaced inside string or template text, never in code or comments.
+function lexContexts(src) {
+  // per-offset context: 'c' code, 'k' comment, "'" / '"' quoted string, '`' template text
+  const ctx = new Array(src.length), stack = []; let st = 'c';
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i], nx = src[i + 1];
+    if (st === 'c') {
+      if (ch === '/' && nx === '/') { const e = src.indexOf('\n', i); const end = e < 0 ? src.length : e; for (; i < end; i++) ctx[i] = 'k'; i--; continue; }
+      if (ch === '/' && nx === '*') { const e = src.indexOf('*/', i + 2); const end = e < 0 ? src.length : e + 2; for (; i < end; i++) ctx[i] = 'k'; i--; continue; }
+      ctx[i] = 'c';
+      if (ch === "'" || ch === '"' || ch === '`') st = ch;
+      else if (ch === '{') stack.length && stack[stack.length - 1]++;
+      else if (ch === '}' && stack.length) { if (stack[stack.length - 1] === 0) { stack.pop(); st = '`'; } else stack[stack.length - 1]--; }
+    } else {
+      if (ch === '\\') { ctx[i] = ctx[i + 1] = st; i++; continue; }
+      if (st === '`' && ch === '$' && nx === '{') { ctx[i] = ctx[i + 1] = 'c'; i++; stack.push(0); st = 'c'; continue; }
+      if (ch === st) { ctx[i] = 'c'; st = 'c'; continue; }
+      if (st !== '`' && ch === '\n') st = 'c';
+      ctx[i] = st;
+    }
+  }
+  return ctx;
+}
+const ASCII = /^[\x20-\x7e]$/;
+async function apply(repo, prof, decision, dryRun) {
+  const t = prof.icon_system, mod = decision.module ?? 'src/ui/icons.ts', fn = decision.function ?? 'icon';
+  // 1. adapt + validate every icon; any failure stops before anything is written
+  const icons = {}, failed = [];
+  for (const [name, d] of Object.entries(decision.icons)) {
+    const a = await adapt(d.source, prof), v = validate(a.fragment, prof);
+    if (!v.ok) failed.push({ name, source: d.source, issues: v.issues }); else icons[name] = { ...d, fragment: a.fragment, operations: a.operations };
+  }
+  if (failed.length) return { applied: false, failed };
+  // 2. call sites
+  const aud = audit(repo), iconSites = new Set(aud.uses.filter((u) => u.kind === 'icon').map((u) => `${u.file}:${u.line}:${u.glyph}`));
+  const skip = new Map((decision.skip ?? []).map((s) => [s.at, s.reason]));
+  for (const r of decision.replace) if (!icons[r.icon]) throw new Error(`replace rule for ${r.glyph} names unknown icon "${r.icon}"`);
+  const files = new Set([...aud.uses.map((u) => u.file), ...decision.replace.flatMap((r) => (r.at ?? []).map((a) => a.split(':')[0]))]);
+  const replaced = [], left = [], writes = {};
+  for (const rel of files) {
+    const file = path.join(repo, rel), src = fs.readFileSync(file, 'utf8'), ctx = lexContexts(src);
+    const collides = new RegExp(`\\b(?:const|let|var|function)\\s+${fn}\\b`).test(src);
+    const call = collides ? `${fn}Svg` : fn;
+    const edits = [];
+    let lineNo = 1;
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] === '\n') { lineNo++; continue; }
+      const cp = src.codePointAt(i), g = String.fromCodePoint(cp), at = `${rel}:${lineNo}`;
+      const rule = decision.replace.find((r) => r.glyph === g && (r.at ? r.at.includes(at) : !ASCII.test(g) && iconSites.has(`${at}:${g}`)));
+      if (!rule) continue;
+      if (skip.has(at)) { left.push({ at, glyph: g, reason: skip.get(at) }); continue; }
+      const c = ctx[i], prev = src[i - 1], next = src[i + g.length];
+      if (c !== "'" && c !== '"' && c !== '`') { if (!ASCII.test(g)) left.push({ at, glyph: g, reason: `in ${c === 'k' ? 'a comment' : 'code'}` }); continue; }
+      if (ASCII.test(g) && !((prev === '>' || prev === c) && (next === '<' || next === c))) continue;
+      const expr = `${call}('${rule.icon}'${rule.size ? `, ${rule.size}` : ''})`;
+      let from = i, to = i + g.length, text;
+      if (c === '`') text = `\${${expr}}`;
+      else if (prev === c && next === c) { from--; to++; text = expr; } // the literal is exactly the glyph
+      else text = `${c} + ${expr} + ${c}`;
+      edits.push({ from, to, text });
+      replaced.push({ at, glyph: g, icon: rule.icon, context: c === '`' ? 'template' : 'string' });
+      i += g.length - 1;
+    }
+    if (!edits.length) continue;
+    let out = src;
+    for (const e of edits.sort((a, b) => b.from - a.from)) out = out.slice(0, e.from) + e.text + out.slice(e.to);
+    let spec = path.relative(path.dirname(file), path.join(repo, mod)).replace(/\.ts$/, '').split(path.sep).join('/');
+    if (!spec.startsWith('.')) spec = './' + spec;
+    const imp = `import { ${fn}${collides ? ` as ${call}` : ''} } from '${spec}';\n`;
+    const lastImport = [...out.matchAll(/^import[^;]*;[ \t]*\n/gm)].pop();
+    out = lastImport ? out.slice(0, lastImport.index + lastImport[0].length) + imp + out.slice(lastImport.index + lastImport[0].length) : imp + out;
+    writes[rel] = out;
+  }
+  // 3. the module: plain SVG string functions, colour from currentColor, no dependency
+  const cols = await collections([...new Set(Object.values(icons).map((d) => d.source.split(':')[0]))]);
+  const body = Object.entries(icons).map(([n, d]) => { const [p] = d.source.split(':'); return `  // ${d.source} (${cols[p]?.name} ${cols[p]?.version ?? ''}, ${cols[p]?.license?.spdx}): ${d.meaning ?? n}\n  '${n}': \`${d.fragment}\`,`; }).join('\n');
+  const module = `// Generated by pikto apply. Do not edit path data by hand: sources, licenses and operations are in .pikto/provenance.json.
+// Colour comes from currentColor, so existing state classes (.source-state.ready, .claim-rejected, …) keep working.
+const PATHS = {
+${body}
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+export const ${fn} = (name: IconName, size = 16): string =>
+  \`<svg class="icon icon-\${name}" viewBox="0 0 ${t.grid} ${t.grid}" width="\${size}" height="\${size}" fill="currentColor" stroke="currentColor" aria-hidden="true" focusable="false" style="vertical-align:-0.125em;flex:none">\${PATHS[name]}</svg>\`;
+`;
+  writes[mod] = module;
+  // 4. provenance, the audit allow list (sites deliberately left as text), and the DESIGN.md section
+  const today = new Date().toISOString().slice(0, 10);
+  const prov = { icons: Object.entries(icons).map(([n, d]) => { const [p] = d.source.split(':'); const col = cols[p];
+    return { name: n, source: d.source, set: col?.name, version: col?.version, license: col?.license, author: col?.author, via: col?.source ?? 'api.iconify.design', meaning: d.meaning, operations: d.operations, reading: d.reading ?? null, permission: d.permission ?? null, added: today }; }) };
+  writes['.pikto/provenance.json'] = JSON.stringify(prov, null, 2) + '\n';
+  writes['.pikto/audit.json'] = JSON.stringify({ module: mod, allow: (decision.skip ?? []).map((s) => ({ file: s.at.split(':')[0], glyph: s.glyph, reason: s.reason })) }, null, 2) + '\n';
+  const dmFile = path.join(repo, 'DESIGN.md');
+  let design = null;
+  if (fs.existsSync(dmFile) && !aud.intent.has_iconography_section) {
+    const sets = [...new Set(Object.values(icons).map((d) => { const p = d.source.split(':')[0]; return `${cols[p]?.name} (${cols[p]?.license?.spdx})`; }))].join(', ');
+    const rows = Object.entries(icons).map(([n, d]) => `| \`${n}\` | ${d.meaning ?? ''} | \`${d.source}\` |`).join('\n');
+    design = `\n## Iconography\n\n${decision.design_md?.intro ?? ''}${decision.design_md?.intro ? '\n\n' : ''}- Source: ${sets}, adapted by pikto to a ${t.grid} grid. Module: \`${mod}\`, \`${fn}(name, size)\` returns an SVG string; colour is \`currentColor\`.\n${(decision.design_md?.rules ?? []).map((r) => `- ${r}\n`).join('')}- No Unicode glyphs as icons. Add icons with \`pikto add\`/\`pikto apply\`; \`pikto audit --check\` fails on new glyphs. Provenance: \`.pikto/provenance.json\`.\n\n| Name | Meaning | Source |\n|---|---|---|\n${rows}\n`;
+    writes['DESIGN.md'] = fs.readFileSync(dmFile, 'utf8').replace(/\s*$/, '\n') + design;
+  }
+  const done = new Set(replaced.map((r) => `${r.at}:${r.glyph}`));
+  const unmapped = aud.uses.filter((u) => u.kind === 'icon' && !done.has(`${u.file}:${u.line}:${u.glyph}`) && !skip.has(`${u.file}:${u.line}`)).map((u) => ({ at: `${u.file}:${u.line}`, glyph: u.glyph, meaning: u.meaning }));
+  if (!dryRun) for (const [rel, s] of Object.entries(writes)) { const f = path.join(repo, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); }
+  return { applied: !dryRun, module: mod, icons: Object.keys(icons), files: Object.keys(writes), replaced, left, unmapped, design_md: design ? 'Iconography section appended' : 'unchanged' };
+}
+
 // ---------- CLI ----------
 const [cmd, x, y] = args;
 const loadProfile = () => JSON.parse(fs.readFileSync(flag('profile', '.pikto/profile.json'), 'utf8'));
 try {
-  if (cmd === 'audit') { const a = audit(x || '.'); out(args.includes('--full') ? a : { ...a, uses: undefined }); }
+  if (cmd === 'audit') {
+    const repo = x || '.', a = audit(repo);
+    if (args.includes('--check')) { // drift: every icon glyph must be allowed in .pikto/audit.json (written by apply)
+      const af = path.join(repo, '.pikto', 'audit.json'), allow = fs.existsSync(af) ? JSON.parse(fs.readFileSync(af, 'utf8')).allow : [];
+      const drift = a.uses.filter((u) => u.kind === 'icon' && !allow.some((al) => al.file === u.file && al.glyph === u.glyph)).map(({ glyph, file, line, role, meaning }) => ({ glyph, at: `${file}:${line}`, role, meaning }));
+      out({ ok: !drift.length, drift, allowed: a.uses.filter((u) => u.kind === 'icon').length - drift.length });
+      if (drift.length) process.exitCode = 1;
+    } else out(args.includes('--full') ? a : { ...a, uses: undefined });
+  }
   else if (cmd === 'profile') out(profile(x || '.'));
   else if (cmd === 'search') out((await search(x, loadProfile())).slice(0, +flag('limit', 8)).map(({ id, set, license, construction, grid, stroke_ratio, score, why, excluded }) => ({ id, set, license, construction, grid, stroke_ratio, score, why, excluded })));
   else if (cmd === 'adapt') { const p = loadProfile(); const a = await adapt(x, p); out({ ...a, validation: validate(a.fragment, p) }); }
   else if (cmd === 'validate') out(validate(fs.readFileSync(x, 'utf8').replace(/^[\s\S]*?<svg[^>]*>|<\/svg>[\s\S]*$/g, ''), loadProfile()));
   else if (cmd === 'differ') { const p = loadProfile(); const ids = [x, ...args.slice(2).filter((v, i, arr) => !v.startsWith('--') && !(arr[i - 1] || '').startsWith('--'))]; out(await Promise.all(ids.map((i) => differ(i, p)))); }
   else if (cmd === 'add') out(await addIcon(x, y, loadProfile()));
+  else if (cmd === 'apply') { const repo = x || '.'; const r = await apply(repo, loadProfile(), JSON.parse(fs.readFileSync(flag('decision', path.join(repo, '.pikto', 'decision.json')), 'utf8')), args.includes('--dry-run')); out(r); if (r.failed) process.exitCode = 1; }
   else if (cmd === 'sheet') { const repo = x || '.'; out(await sheet(repo, loadProfile(), JSON.parse(fs.readFileSync(flag('proposal', path.join(repo, '.pikto', 'proposal.json')), 'utf8')), flag('out', path.join(repo, '.pikto', 'sheet.html')))); }
   else console.log(`pikto <command>
   profile <repo>                     derive visual profile (JSON to stdout)
   search  <concept> --profile P      ranked, licence-filtered candidates from Iconify
   adapt   <prefix:name> --profile P  transform to the repo's grid/stroke/colour convention + validation
   validate <file.svg> --profile P    check an SVG against the profile
-  audit   <repo> [--full]           DESIGN.md intent vs icon-like glyphs/SVG in code: roles, inconsistencies
+  audit   <repo> [--full | --check]  DESIGN.md intent vs icon-like glyphs/SVG in code; --check exits 1 on glyphs not allowed in .pikto/audit.json
   differ  <id> [id…] --profile P     visual weight vs siblings, confusability, distance from the generic default
   add     <prefix:name> <name> --profile P [--reading "…" --permission "…"]   adapt + validate + write + provenance
   sheet   <repo> --profile P [--proposal F --out sheet.html]   contact sheet: today's glyph → proposed icon, per role family
+  apply   <repo> --profile P [--decision F --dry-run]   write the icons module, replace call sites, provenance, DESIGN.md ## Iconography
 global: --offline   use only local @iconify-json/* packages and the cache (${'$'}PIKTO_CACHE, default ~/.cache/pikto)`);
 } catch (e) { console.error('error:', e.message); process.exit(1); }
