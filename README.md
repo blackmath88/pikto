@@ -30,6 +30,7 @@ Icon data comes from local `@iconify-json/<prefix>` packages when installed (ver
 - [docs/ENTSLOPIFY.md](docs/ENTSLOPIFY.md): différance, the pictogram lineage, Lumpesammlig, and the Syntax view
 - [docs/WORKFLOW.md](docs/WORKFLOW.md): architecture and UX for polishing a finished repo (opendata-explorer)
 - [docs/AUDIT.md](docs/AUDIT.md), [docs/SHEET.md](docs/SHEET.md), [docs/APPLY.md](docs/APPLY.md): intent vs code, the contact sheet where the human decides, and the reviewable diff
+- [docs/LIBRARY.md](docs/LIBRARY.md): repos that already import an icon library (br-ai-nstorm, lucide-react)
 - [docs/EXAMPLE.md](docs/EXAMPLE.md), [docs/EVALUATION.md](docs/EVALUATION.md): the first vertical slice (Astro portfolio, 404 compass)
 - [ROADMAP.md](ROADMAP.md)
 

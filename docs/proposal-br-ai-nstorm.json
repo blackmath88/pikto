@@ -1,0 +1,65 @@
+{
+  "title": "Icon proposal: br-ai-nstorm",
+  "font": "Inter, system-ui, sans-serif",
+  "roles": [
+    {
+      "role": "Hand-off marker",
+      "note": "↗ trails a button label (Think with my AI, Think privately): the action leaves the shared room. The existing lucide icon in the same button is shown for weight.",
+      "context": {
+        "size": 14,
+        "box": 30,
+        "radius": 8,
+        "color": "var(--ink)",
+        "background": "var(--mint2)"
+      },
+      "items": [
+        {
+          "meaning": "leaves the room",
+          "today": "↗",
+          "candidates": [
+            "lucide:arrow-up-right",
+            "lucide:external-link",
+            "lucide:square-arrow-out-up-right"
+          ],
+          "reading": "A marker, not the action: smaller than the leading icon, same family."
+        },
+        {
+          "meaning": "existing: think with AI",
+          "today": "—",
+          "candidates": [
+            "lucide:brain-circuit"
+          ],
+          "context": {
+            "size": 16
+          }
+        }
+      ]
+    },
+    {
+      "role": "Conflict pair",
+      "note": "conflict-vs sits between two claims that contradict each other; .conflict-vs colours it #b77b82.",
+      "context": {
+        "size": 14,
+        "box": 30,
+        "radius": 8,
+        "color": "#b77b82",
+        "background": "var(--paper)"
+      },
+      "items": [
+        {
+          "meaning": "in tension with",
+          "today": "↔",
+          "candidates": [
+            "lucide:move-horizontal",
+            "lucide:arrow-left-right",
+            "lucide:git-compare-arrows"
+          ],
+          "reading": "The same ↔ in the family's grammar; arrow-left-right (two stacked arrows) reads as swap."
+        }
+      ]
+    }
+  ],
+  "questions": [
+    "Should the hand-off marker be arrow-up-right (leaves this view) or external-link (opens elsewhere)? The export opens a dialog, not a new tab."
+  ]
+}

@@ -137,6 +137,18 @@ function profile(repo) {
       construction.push(a.fill === 'none' || a['stroke-width'] ? 'stroke' : 'fill');
     }
   }
+  // an imported library is the convention when the repo has no registry of its own: its grammar is the family's
+  const libs = libraryUses(repo).sort((a, b) => Object.values(b.components).reduce((s, c) => s + c.uses, 0) - Object.values(a.components).reduce((s, c) => s + c.uses, 0));
+  const lib = !registry && !component && libs[0] ? { ...libs[0], spec: libSpec(libs[0].package) } : null;
+  if (lib) {
+    families.add(lib.prefix);
+    const sws = Object.entries(lib.stroke_widths).sort((a, b) => b[1] - a[1]);
+    const sw0 = sws.length ? +sws[0][0] : lib.spec.stroke;
+    if (sw0) { strokeWidths.length = 0; strokeWidths.push(sw0); caps.push(lib.spec.cap); joins.push(lib.spec.join); }
+    construction.push(lib.spec.stroke ? 'stroke' : 'fill');
+    grids.length = 0; grids.push(lib.spec.grid);
+    for (const [sz, n] of Object.entries(lib.sizes)) for (let k = 0; k < n; k++) sizes.push(sz);
+  }
   // no icons in the repo yet: the grid is a free choice (24); stroke and size come from DESIGN.md intent
   const intent = readIntent(repo);
   const grid = component?.grid ?? (grids.length ? Number(mode(grids)) : 24);
@@ -155,16 +167,17 @@ function profile(repo) {
     repo: path.resolve(repo),
     icon_system: {
       families: [...families], registry, component,
+      library: lib ? { package: lib.package, prefix: lib.prefix, components: Object.keys(lib.components).length, sizes: lib.sizes } : null,
       grid, grid_consistency: gridConsistency, stroke_width: sw, stroke_ratio: sw ? +(sw / grid).toFixed(4) : null,
       stroke_width_at_24: sw ? +((sw / grid) * 24).toFixed(2) : null,
       linecap: mode(caps), linejoin: mode(joins),
       construction: { stroke_shapes: nStroke, fill_shapes: construction.length - nStroke, dominant: !construction.length ? null : nStroke >= construction.length / 2 ? 'stroke' : 'fill' },
       fill_convention: registry ? 'fill shapes carry stroke="none"; stroke shapes carry fill="none"; colour inherited from <svg>' : 'currentColor',
-      render_sizes: [...new Set(sizes.length ? sizes : render ? [String(render)] : [])],
+      render_sizes: [...new Set(sizes.length ? sizes : render ? [String(render)] : [])].sort((a, b) => a - b),
       // DESIGN.md stroke rule, in px at the render size and in grid units; adapt clamps to it when no stroke_width is measured
       stroke_px_range: intent.stroke_px ?? null, render_px: render,
       stroke_range: intent.stroke_px && render ? intent.stroke_px.map((v) => +((v * grid) / render).toFixed(3)) : null,
-      source: construction.length ? 'measured from existing icons' : intent.file ? `no icons found; intent from ${intent.file}` : 'no icons found; defaults',
+      source: lib ? `grammar of ${lib.package} (imported library)` : construction.length ? 'measured from existing icons' : intent.file ? `no icons found; intent from ${intent.file}` : 'no icons found; defaults',
     },
     tokens: { accent: pick(/accent|gradient-stop/), radius: pick(/radius|rounded/), fonts: pick(/font/) },
     evidence: { files_scanned: files.length, stroke_samples: strokeWidths.length, shapes_sampled: construction.length },
@@ -370,6 +383,59 @@ function readIntent(repo) {
     const sz = intent.icon_rules.join(' ').match(/(\d+)px (?:stroke )?glyph/); if (sz) intent.glyph_px = +sz[1]; }
   return intent;
 }
+// ---------- icon libraries imported as components (lucide-react, heroicons, tabler, phosphor, radix, react-icons) ----------
+// Each entry maps a package to its Iconify prefix, the component naming rule and the family's stroke grammar.
+const pascal = (k) => k.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+const kebab = (c) => c.replace(/([a-z])([A-Z0-9])/g, '$1-$2').replace(/([0-9])([A-Z])/g, '$1-$2').replace(/([A-Z])([A-Z][a-z])/g, '$1-$2').toLowerCase();
+const LIBS = [
+  { re: /^lucide(?:-react|-vue-next|-svelte|-solid|-preact)?$/, prefix: 'lucide', toName: (c) => kebab(c.replace(/^Lucide/, '').replace(/Icon$/, '')), toComp: pascal, grid: 24, stroke: 2, cap: 'round', join: 'round' },
+  { re: /^@tabler\/icons-react$/, prefix: 'tabler', toName: (c) => kebab(c.replace(/^Icon/, '')), toComp: (n) => 'Icon' + pascal(n), grid: 24, stroke: 2, cap: 'round', join: 'round' },
+  { re: /^@heroicons\/react\/24\/outline$/, prefix: 'heroicons', toName: (c) => kebab(c.replace(/Icon$/, '')), toComp: (n) => pascal(n) + 'Icon', grid: 24, stroke: 1.5, cap: 'round', join: 'round' },
+  { re: /^@heroicons\/react\/24\/solid$/, prefix: 'heroicons', toName: (c) => kebab(c.replace(/Icon$/, '')) + '-solid', toComp: (n) => pascal(n.replace(/-solid$/, '')) + 'Icon', grid: 24, stroke: null },
+  { re: /^@phosphor-icons\/react$/, prefix: 'ph', toName: (c) => kebab(c.replace(/Icon$/, '')), toComp: pascal, grid: 256, stroke: null },
+  { re: /^@radix-ui\/react-icons$/, prefix: 'radix-icons', toName: (c) => kebab(c.replace(/Icon$/, '')), toComp: (n) => pascal(n) + 'Icon', grid: 15, stroke: null },
+  ...[['lu', 'lucide', 'Lu'], ['fi', 'feather', 'Fi'], ['tb', 'tabler', 'Tb'], ['pi', 'ph', 'Pi'], ['hi2', 'heroicons', 'Hi']].map(([sub, prefix, p]) =>
+    ({ re: new RegExp(`^react-icons/${sub}$`), prefix, toName: (c) => kebab(c.replace(new RegExp(`^${p}`), '')), toComp: (n) => p + pascal(n), grid: 24, stroke: null })),
+];
+function libraryUses(repo) {
+  const libs = {};
+  for (const f of walk(repo)) {
+    if (!/\.(tsx?|jsx?|vue|svelte|astro|mjs)$/.test(f) || /\.test\./.test(f)) continue;
+    const src = fs.readFileSync(f, 'utf8'), rel = path.relative(repo, f);
+    for (const m of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+      const lib = LIBS.find((l) => l.re.test(m[2])); if (!lib) continue;
+      const L = (libs[m[2]] ??= { package: m[2], prefix: lib.prefix, files: [], components: {}, sizes: {}, stroke_widths: {} });
+      L.files.push(rel);
+      for (const spec of m[1].split(',').map((x) => x.trim()).filter(Boolean)) {
+        const [imported, local = imported] = spec.split(/\s+as\s+/);
+        const c = (L.components[imported] ??= { id: `${lib.prefix}:${lib.toName(imported)}`, uses: 0, sizes: [] });
+        for (const u of src.matchAll(new RegExp(`<${local}\\b([^>]*?)\\/?>`, 'g'))) {
+          c.uses++;
+          const size = u[1].match(/\bsize=\{?["']?([\d.]+)/)?.[1], sw = u[1].match(/\bstrokeWidth=\{?["']?([\d.]+)/)?.[1];
+          if (size) { c.sizes.includes(+size) || c.sizes.push(+size); L.sizes[size] = (L.sizes[size] || 0) + 1; }
+          if (sw) L.stroke_widths[sw] = (L.stroke_widths[sw] || 0) + 1;
+        }
+      }
+    }
+  }
+  return Object.values(libs);
+}
+const libSpec = (pkg) => LIBS.find((l) => l.re.test(pkg));
+
+// Is this glyph an icon or typography? An icon stands alone (its whole element or literal) or trails a label as a
+// marker ("Open source ↗"). Typography sits inside prose: between words or interpolations ("a → b", "${x} ↔ ${y}"),
+// as a separator literal (' → '), or leading a sentence ("→ became a new branch").
+function glyphKind(g, before, after) {
+  const arrow = /[\u2190-\u21FF]/u.test(g);
+  if (/[>'"`]$/.test(before) && /^[<'"`]/.test(after)) return 'icon';
+  if (/[\w)]\s$/.test(before) && /^\s*(?:$|<|['"`])/.test(after)) return 'icon';
+  if (/[A-Za-z]\s?$/.test(before.replace(/<[^>]*>$/, '')) && /^\s?[A-Za-z]/.test(after)) return 'in running text';
+  if (/[\w})\]'"]\s+$/.test(before) && /^\s+(?:\$\{|[\w{(])/.test(after)) return 'connector between operands';
+  if (arrow && /['"`]\s+$/.test(before) && /^\s+['"`]/.test(after)) return 'separator literal';
+  if (arrow && /^\s+\$\{/.test(after)) return 'connector before a value';
+  if (/(?:^|[>'"`\[])\s*$/.test(before) && /^\s+[a-z][\w-]*(?:\s+[\w+'-]+){2,}/.test(after)) return 'leads a sentence';
+  return 'icon';
+}
 function audit(repo) {
   const intent = readIntent(repo);
   const uses = [];
@@ -381,11 +447,11 @@ function audit(repo) {
       for (const m of line.matchAll(GLYPH)) {
         const g = m[0], at = m.index; if (NOT_ICON.test(g)) continue;
         const before = line.slice(Math.max(0, at - 140), at), after = line.slice(at + 1, at + 60);
-        const cls = [...before.matchAll(/class="([^"]+)"/g)].pop()?.[1] ?? null;
+        const cls = [...before.matchAll(/class(?:Name)?="([^"]+)"/g)].pop()?.[1] ?? null;
         const cond = [...before.matchAll(/===\s*'([\w-]+)'\s*\?\s*'?$/g)].pop()?.[1] ?? [...before.matchAll(/'([\w-]+)'\s*\?\s*'[^']*$/g)].pop()?.[1];
         const label = after.match(/^\s*([A-Za-z][\w -]{1,24})/)?.[1]?.trim() ?? after.match(/<span>([^<]{1,24})</)?.[1] ?? null;
-        const inText = /[A-Za-z]\s?$/.test(before.replace(/<[^>]*>$/, '')) && /^\s?[A-Za-z]/.test(after);
-        uses.push({ glyph: g, file: rel, line: i + 1, role: cls, meaning: (cond || label || '').toLowerCase() || null, kind: inText ? 'typographic' : 'icon' });
+        const kind = glyphKind(g, before, after);
+        uses.push({ glyph: g, file: rel, line: i + 1, role: cls, meaning: (cond || label || '').toLowerCase() || null, kind: kind === 'icon' ? 'icon' : 'typographic', ...(kind === 'icon' ? {} : { why: kind }) });
       }
     });
   }
@@ -396,9 +462,17 @@ function audit(repo) {
   for (const [m, gs] of Object.entries(byMeaning)) if (gs.size > 1) issues.push(`"${m}" is drawn as ${[...gs].join(' / ')}`);
   const vocabulary = Object.fromEntries(Object.entries(byGlyph).map(([g, ms]) => [g, [...ms]]));
   if (icons.length && intent.stroke_px) issues.push(`DESIGN.md asks for ${intent.stroke_px.join('–')}px stroke icons; ${icons.length} Unicode glyphs render with font-dependent weight`);
+  // libraries: two families are two grammars; a glyph in a file that already imports the library should use it
+  const libraries = libraryUses(repo);
+  const prefixes = [...new Set(libraries.map((l) => l.prefix))];
+  if (prefixes.length > 1) issues.push(`${prefixes.length} icon families imported (${libraries.map((l) => l.package).join(', ')}): two grammars in one UI`);
+  for (const l of libraries) {
+    const beside = icons.filter((u) => l.files.includes(u.file));
+    if (beside.length) issues.push(`${beside.length} glyph${beside.length > 1 ? 's' : ''} (${[...new Set(beside.map((u) => u.glyph))].join(' ')}) in files that already import ${l.package}: use the library`);
+  }
   const roles = {};
   for (const u of icons) { const r = (roles[u.role ?? `${u.file}`] ??= { glyphs: {}, sites: 0 }); r.sites++; r.glyphs[u.glyph] = [...new Set([...(r.glyphs[u.glyph] ?? []), u.meaning ?? '?'])]; }
-  return { repo: path.resolve(repo), intent, summary: { icon_glyphs: icons.length, typographic: uses.length - icons.length, roles: Object.keys(roles).length, issues: issues.length }, issues, vocabulary, roles, uses };
+  return { repo: path.resolve(repo), intent, summary: { icon_glyphs: icons.length, typographic: uses.length - icons.length, roles: Object.keys(roles).length, libraries: libraries.map((l) => `${l.package} (${Object.keys(l.components).length})`), issues: issues.length }, issues, vocabulary, roles, libraries, uses };
 }
 
 // ---------- sheet (contact sheet: before → after in the repo's own tokens; the human decides here) ----------
@@ -561,13 +635,27 @@ function lexContexts(src) {
   return ctx;
 }
 const ASCII = /^[\x20-\x7e]$/;
+// JSX text: the nearest structural characters around the glyph are an element boundary (> or }) and (< or {)
+function jsxText(src, i) {
+  let b = i - 1; while (b >= 0 && !/[<>{}();=]/.test(src[b])) b--;
+  let f = i + 1; while (f < src.length && !/[<>{}();=]/.test(src[f])) f++;
+  return (src[b] === '>' || src[b] === '}') && (src[f] === '<' || src[f] === '{');
+}
+function canonical(prefix, n) { const s = localSet(prefix); let k = n, h = 0; while (s && !s.icons[k] && s.aliases?.[k] && h++ < 5) k = s.aliases[k].parent; return k; }
+const IMPORT = /^import\b[\s\S]*?\bfrom\s*['"][^'"]+['"];?[ \t]*\n|^import\s*['"][^'"]+['"];?[ \t]*\n/gm;
+const insertImport = (src, imp) => { const last = [...src.matchAll(IMPORT)].pop(); return last ? src.slice(0, last.index + last[0].length) + imp + src.slice(last.index + last[0].length) : imp + src; };
 async function apply(repo, prof, decision, dryRun) {
   const t = prof.icon_system, mod = decision.module ?? 'src/ui/icons.ts', fn = decision.function ?? 'icon';
+  // target: the repo's own imported library when every chosen icon comes from its family, else a generated module
+  const lib = t.library, lspec = lib && libSpec(lib.package);
+  const target = decision.target ?? (lib && Object.values(decision.icons).every((d) => d.source.startsWith(lib.prefix + ':')) ? 'library' : 'module');
+  if (target === 'library' && !lspec) throw new Error('decision targets a library, but the profile found none');
   // 1. adapt + validate every icon; any failure stops before anything is written
   const icons = {}, failed = [];
   for (const [name, d] of Object.entries(decision.icons)) {
     const a = await adapt(d.source, prof), v = validate(a.fragment, prof);
     if (!v.ok) failed.push({ name, source: d.source, issues: v.issues }); else icons[name] = { ...d, fragment: a.fragment, operations: a.operations };
+    if (icons[name] && target === 'library') { const [p, n] = d.source.split(':'); icons[name].component = lspec.toComp(canonical(p, n)); }
   }
   if (failed.length) return { applied: false, failed };
   // 2. call sites
@@ -580,7 +668,7 @@ async function apply(repo, prof, decision, dryRun) {
     const file = path.join(repo, rel), src = fs.readFileSync(file, 'utf8'), ctx = lexContexts(src);
     const collides = new RegExp(`\\b(?:const|let|var|function)\\s+${fn}\\b`).test(src);
     const call = collides ? `${fn}Svg` : fn;
-    const edits = [];
+    const edits = [], used = new Set();
     let lineNo = 1;
     for (let i = 0; i < src.length; i++) {
       if (src[i] === '\n') { lineNo++; continue; }
@@ -589,6 +677,15 @@ async function apply(repo, prof, decision, dryRun) {
       if (!rule) continue;
       if (skip.has(at)) { left.push({ at, glyph: g, reason: skip.get(at) }); continue; }
       const c = ctx[i], prev = src[i - 1], next = src[i + g.length];
+      if (target === 'library') {
+        if (!/\.(tsx|jsx)$/.test(rel)) { if (!ASCII.test(g)) left.push({ at, glyph: g, reason: `not a JSX file: ${lib.package} cannot render here` }); continue; }
+        if (c !== 'c' || !jsxText(src, i)) { if (!ASCII.test(g)) left.push({ at, glyph: g, reason: c === 'k' ? 'in a comment' : 'not in JSX text: a string cannot hold a component' }); continue; }
+        if (ASCII.test(g) && !(prev === '>' && next === '<')) continue;
+        const comp = icons[rule.icon].component;
+        edits.push({ from: i, to: i + g.length, text: `<${comp}${rule.size ? ` size={${rule.size}}` : ''} aria-hidden="true" />` });
+        used.add(comp); replaced.push({ at, glyph: g, icon: rule.icon, component: comp, context: 'jsx' });
+        i += g.length - 1; continue;
+      }
       if (c !== "'" && c !== '"' && c !== '`') { if (!ASCII.test(g)) left.push({ at, glyph: g, reason: `in ${c === 'k' ? 'a comment' : 'code'}` }); continue; }
       if (ASCII.test(g) && !((prev === '>' || prev === c) && (next === '<' || next === c))) continue;
       const expr = `${call}('${rule.icon}'${rule.size ? `, ${rule.size}` : ''})`;
@@ -603,11 +700,18 @@ async function apply(repo, prof, decision, dryRun) {
     if (!edits.length) continue;
     let out = src;
     for (const e of edits.sort((a, b) => b.from - a.from)) out = out.slice(0, e.from) + e.text + out.slice(e.to);
-    let spec = path.relative(path.dirname(file), path.join(repo, mod)).replace(/\.ts$/, '').split(path.sep).join('/');
-    if (!spec.startsWith('.')) spec = './' + spec;
-    const imp = `import { ${fn}${collides ? ` as ${call}` : ''} } from '${spec}';\n`;
-    const lastImport = [...out.matchAll(/^import[^;]*;[ \t]*\n/gm)].pop();
-    out = lastImport ? out.slice(0, lastImport.index + lastImport[0].length) + imp + out.slice(lastImport.index + lastImport[0].length) : imp + out;
+    const imps = [...out.matchAll(IMPORT)], semi = (imps.length ? imps.some((m) => /;\s*$/.test(m[0])) : /;[ \t]*$/m.test(out)) ? ';' : '';
+    if (target === 'library') { // merge into the existing import from the library, keeping its order convention
+      const m = out.match(new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*(['"])${lib.package.replace(/[/.@-]/g, '\\$&')}\\2`));
+      if (m) { const have = m[1].split(',').map((x) => x.trim()).filter(Boolean), sorted = have.every((v, k) => !k || have[k - 1].localeCompare(v) <= 0);
+        const all = [...new Set([...have, ...used])]; if (sorted) all.sort((a, b) => a.localeCompare(b));
+        out = out.replace(m[0], m[0].replace(m[1], ` ${all.join(', ')} `)); }
+      else out = insertImport(out, `import { ${[...used].sort().join(', ')} } from '${lib.package}'${semi}\n`);
+    } else {
+      let spec = path.relative(path.dirname(file), path.join(repo, mod)).replace(/\.ts$/, '').split(path.sep).join('/');
+      if (!spec.startsWith('.')) spec = './' + spec;
+      out = insertImport(out, `import { ${fn}${collides ? ` as ${call}` : ''} } from '${spec}'${semi}\n`);
+    }
     writes[rel] = out;
   }
   // 3. the module: plain SVG string functions, colour from currentColor, no dependency
@@ -624,25 +728,30 @@ export type IconName = keyof typeof PATHS;
 export const ${fn} = (name: IconName, size = 16): string =>
   \`<svg class="icon icon-\${name}" viewBox="0 0 ${t.grid} ${t.grid}" width="\${size}" height="\${size}" fill="currentColor" stroke="currentColor" aria-hidden="true" focusable="false" style="vertical-align:-0.125em;flex:none">\${PATHS[name]}</svg>\`;
 `;
-  writes[mod] = module;
+  if (target === 'module') writes[mod] = module;
+  const pkgJson = fs.existsSync(path.join(repo, 'package.json')) ? JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8')) : {};
+  const libVersion = lib && ({ ...pkgJson.dependencies, ...pkgJson.devDependencies })[lib.package];
   // 4. provenance, the audit allow list (sites deliberately left as text), and the DESIGN.md section
   const today = new Date().toISOString().slice(0, 10);
   const prov = { icons: Object.entries(icons).map(([n, d]) => { const [p] = d.source.split(':'); const col = cols[p];
-    return { name: n, source: d.source, set: col?.name, version: col?.version, license: col?.license, author: col?.author, via: col?.source ?? 'api.iconify.design', meaning: d.meaning, operations: d.operations, reading: d.reading ?? null, permission: d.permission ?? null, added: today }; }) };
+    const base = { name: n, source: d.source, set: col?.name, license: col?.license, author: col?.author, meaning: d.meaning, reading: d.reading ?? null, permission: d.permission ?? null, added: today };
+    return target === 'library' ? { ...base, component: d.component, package: lib.package, package_version: libVersion ?? null, operations: ['none: rendered by the repo\'s own library, no geometry copied'] }
+      : { ...base, version: col?.version, via: col?.source ?? 'api.iconify.design', operations: d.operations }; }) };
   writes['.pikto/provenance.json'] = JSON.stringify(prov, null, 2) + '\n';
-  writes['.pikto/audit.json'] = JSON.stringify({ module: mod, allow: (decision.skip ?? []).map((s) => ({ file: s.at.split(':')[0], glyph: s.glyph, reason: s.reason })) }, null, 2) + '\n';
+  writes['.pikto/audit.json'] = JSON.stringify({ module: target === 'library' ? lib.package : mod, allow: (decision.skip ?? []).map((s) => ({ file: s.at.split(':')[0], glyph: s.glyph, reason: s.reason })) }, null, 2) + '\n';
   const dmFile = path.join(repo, 'DESIGN.md');
   let design = null;
   if (fs.existsSync(dmFile) && !aud.intent.has_iconography_section) {
     const sets = [...new Set(Object.values(icons).map((d) => { const p = d.source.split(':')[0]; return `${cols[p]?.name} (${cols[p]?.license?.spdx})`; }))].join(', ');
     const rows = Object.entries(icons).map(([n, d]) => `| \`${n}\` | ${d.meaning ?? ''} | \`${d.source}\` |`).join('\n');
-    design = `\n## Iconography\n\n${decision.design_md?.intro ?? ''}${decision.design_md?.intro ? '\n\n' : ''}- Source: ${sets}, adapted by pikto to a ${t.grid} grid. Module: \`${mod}\`, \`${fn}(name, size)\` returns an SVG string; colour is \`currentColor\`.\n${(decision.design_md?.rules ?? []).map((r) => `- ${r}\n`).join('')}- No Unicode glyphs as icons. Add icons with \`pikto add\`/\`pikto apply\`; \`pikto audit --check\` fails on new glyphs. Provenance: \`.pikto/provenance.json\`.\n\n| Name | Meaning | Source |\n|---|---|---|\n${rows}\n`;
+    const src = target === 'library' ? `- Source: ${lib.package} components only (${sets}); no second library, no pasted SVG.\n` : `- Source: ${sets}, adapted by pikto to a ${t.grid} grid. Module: \`${mod}\`, \`${fn}(name, size)\` returns an SVG string; colour is \`currentColor\`.\n`;
+    design = `\n## Iconography\n\n${decision.design_md?.intro ?? ''}${decision.design_md?.intro ? '\n\n' : ''}${src}${(decision.design_md?.rules ?? []).map((r) => `- ${r}\n`).join('')}- No Unicode glyphs as icons. Add icons with \`pikto add\`/\`pikto apply\`; \`pikto audit --check\` fails on new glyphs. Provenance: \`.pikto/provenance.json\`.\n\n| Name | Meaning | Source |\n|---|---|---|\n${rows}\n`;
     writes['DESIGN.md'] = fs.readFileSync(dmFile, 'utf8').replace(/\s*$/, '\n') + design;
   }
   const done = new Set(replaced.map((r) => `${r.at}:${r.glyph}`));
   const unmapped = aud.uses.filter((u) => u.kind === 'icon' && !done.has(`${u.file}:${u.line}:${u.glyph}`) && !skip.has(`${u.file}:${u.line}`)).map((u) => ({ at: `${u.file}:${u.line}`, glyph: u.glyph, meaning: u.meaning }));
   if (!dryRun) for (const [rel, s] of Object.entries(writes)) { const f = path.join(repo, rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); }
-  return { applied: !dryRun, module: mod, icons: Object.keys(icons), files: Object.keys(writes), replaced, left, unmapped, design_md: design ? 'Iconography section appended' : 'unchanged' };
+  return { applied: !dryRun, target, module: target === 'library' ? lib.package : mod, icons: Object.keys(icons), files: Object.keys(writes), replaced, left, unmapped, design_md: design ? 'Iconography section appended' : 'unchanged' };
 }
 
 // ---------- CLI ----------

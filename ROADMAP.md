@@ -1,5 +1,9 @@
 # Roadmap
 
+## Done (v0.5)
+- `audit` separates icons from typography (br-ai-nstorm: 23 → 5); inventories icon-library imports
+- `profile` adopts an imported library's grammar; `apply` writes library components into JSX (see docs/LIBRARY.md)
+
 ## Done (v0.4)
 - `apply` and `audit --check`; first run produced a patch for opendata-explorer
 
@@ -17,11 +21,12 @@
 2. [x] `sheet` (v0.3, see docs/SHEET.md): contact sheet (HTML) of before → after in the repo's own tokens, with optical stroke, weight and in-family confusability.
 3. [x] `apply` (v0.4, see docs/APPLY.md): write `src/ui/icons.ts` (plain SVG string functions), replace call sites by lexical context, write provenance, append `## Iconography` to DESIGN.md.
 4. [x] `audit --check`: drift check against `.pikto/audit.json` (pre-commit or CI).
-5. Land the opendata-explorer patch upstream (docs/opendata-explorer-icons.patch).
+5. Land the patches upstream: docs/opendata-explorer-icons.patch, docs/br-ai-nstorm-icons.patch.
 
 ## Later
 - Write targets for `.vue`/`.svelte`/`.astro` templates and JSX text in `apply`
 - `sheet` should read the render context from real CSS instead of trusting the proposal
 - AIGA/DOT public-domain source adapter
-- Write targets for unplugin-icons and Svelte switch components
+- Write targets for unplugin-icons (`~icons/…`), deep per-icon imports and Svelte switch components
+- `sheet`: show a library's existing icons as siblings automatically
 - MCP only as a thin wrapper over the CLI

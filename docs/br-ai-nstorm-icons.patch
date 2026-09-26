@@ -1,0 +1,174 @@
+From 9b11a0eec34b2d91b37d15d3fc86a2cb3edc4225 Mon Sep 17 00:00:00 2001
+From: pikto <noreply@anthropic.com>
+Date: Sat, 26 Sep 2026 12:44:03 +0000
+Subject: [PATCH] =?UTF-8?q?Icons:=20use=20lucide-react=20for=20the=20?=
+ =?UTF-8?q?=E2=86=97=20and=20=E2=86=94=20glyphs?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Generated with pikto apply (decision and contact sheet in blackmath88/pikto docs/).
+The repo already renders lucide-react; the three Unicode glyphs beside those icons now
+use the same library instead of font-dependent characters: ArrowUpRight as the
+hand-off marker on "Think with my AI" / "Think privately", MoveHorizontal in
+.conflict-vs. Prose arrows (a → b, ${x} ↔ ${y}) stay text. The static prototype HTML is
+left as is. .pikto/audit.json lets `pikto audit --check` catch new glyphs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01C4YymvnQ8fu28LVdf3r7fR
+---
+ .pikto/audit.json            | 15 +++++++++++
+ .pikto/provenance.json       | 52 ++++++++++++++++++++++++++++++++++++
+ src/App.tsx                  |  4 +--
+ src/components/SideRail.tsx  |  3 ++-
+ src/components/StateView.tsx |  3 ++-
+ 5 files changed, 73 insertions(+), 4 deletions(-)
+ create mode 100644 .pikto/audit.json
+ create mode 100644 .pikto/provenance.json
+
+diff --git a/.pikto/audit.json b/.pikto/audit.json
+new file mode 100644
+index 0000000..61ab049
+--- /dev/null
++++ b/.pikto/audit.json
+@@ -0,0 +1,15 @@
++{
++  "module": "lucide-react",
++  "allow": [
++    {
++      "file": "br-ai-nstorm-prototype.html",
++      "glyph": "↗",
++      "reason": "static HTML prototype outside the React app"
++    },
++    {
++      "file": "br-ai-nstorm-prototype.html",
++      "glyph": "↗",
++      "reason": "static HTML prototype outside the React app"
++    }
++  ]
++}
+diff --git a/.pikto/provenance.json b/.pikto/provenance.json
+new file mode 100644
+index 0000000..37413c7
+--- /dev/null
++++ b/.pikto/provenance.json
+@@ -0,0 +1,52 @@
++{
++  "icons": [
++    {
++      "name": "handoff",
++      "source": "lucide:arrow-up-right",
++      "set": "Lucide",
++      "license": {
++        "title": "ISC",
++        "spdx": "ISC",
++        "url": "https://github.com/lucide-icons/lucide/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Lucide Contributors",
++        "url": "https://github.com/lucide-icons/lucide"
++      },
++      "meaning": "the action leaves the shared room (export to your AI, private thinking)",
++      "reading": "A trailing marker in the same family as the button's leading icon, one size smaller.",
++      "permission": "↗ sat next to <BrainCircuit size={16} /> from lucide-react in the same button.",
++      "added": "2026-09-26",
++      "component": "ArrowUpRight",
++      "package": "lucide-react",
++      "package_version": "^0.468.0",
++      "operations": [
++        "none: rendered by the repo's own library, no geometry copied"
++      ]
++    },
++    {
++      "name": "tension",
++      "source": "lucide:move-horizontal",
++      "set": "Lucide",
++      "license": {
++        "title": "ISC",
++        "spdx": "ISC",
++        "url": "https://github.com/lucide-icons/lucide/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Lucide Contributors",
++        "url": "https://github.com/lucide-icons/lucide"
++      },
++      "meaning": "two claims in conflict",
++      "reading": "The same double-headed arrow ↔, drawn in the family's grammar. arrow-left-right (two stacked opposing arrows) was rejected on the rendered page: it reads as swap, not tension.",
++      "permission": "↔ in .conflict-vs, font-weight 900: a font glyph standing in for an icon.",
++      "added": "2026-09-26",
++      "component": "MoveHorizontal",
++      "package": "lucide-react",
++      "package_version": "^0.468.0",
++      "operations": [
++        "none: rendered by the repo's own library, no geometry copied"
++      ]
++    }
++  ]
++}
+diff --git a/src/App.tsx b/src/App.tsx
+index c8d072f..7f653b9 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -8,7 +8,7 @@
+  * State stays canonical. Map and Timeline are projections over the same data.
+  */
+ import { useMemo, useState } from 'react'
+-import { BrainCircuit, GitBranch, History, LayoutList, ListChecks, RefreshCw, Sparkles } from 'lucide-react'
++import { ArrowUpRight, BrainCircuit, GitBranch, History, LayoutList, ListChecks, RefreshCw, Sparkles } from 'lucide-react'
+ import { useRoom } from './state/useRoom'
+ import { ProblemTabs } from './components/ProblemTabs'
+ import { StateView } from './components/StateView'
+@@ -139,7 +139,7 @@ export default function App() {
+             <RefreshCw size={15} /> {room.busy ? 'Refreshing…' : 'Refresh'}
+           </button>
+           <button className="button aperture" onClick={() => openExport('')} disabled={!data}>
+-            <BrainCircuit size={16} /> Think with my AI ↗
++            <BrainCircuit size={16} /> Think with my AI <ArrowUpRight size={14} aria-hidden="true" />
+           </button>
+           <button className="button" onClick={openImport} disabled={!data}>
+             Import AI result
+diff --git a/src/components/SideRail.tsx b/src/components/SideRail.tsx
+index e565d40..0de6700 100644
+--- a/src/components/SideRail.tsx
++++ b/src/components/SideRail.tsx
+@@ -8,6 +8,7 @@
+ import type { ContributionRecord, ProblemUpdates } from '../lib/api'
+ import { attribution } from './StateView'
+ import { actorLabel } from './TimelineView'
++import { ArrowUpRight } from 'lucide-react'
+ 
+ export function SideRail({
+   updates,
+@@ -140,7 +141,7 @@ export function SideRail({
+             {busy ? 'Saving…' : 'Add to problem'}
+           </button>
+           <button className="button" onClick={onThinkPrivate} disabled={!canContribute}>
+-            Think privately ↗
++            Think privately <ArrowUpRight size={14} aria-hidden="true" />
+           </button>
+         </div>
+         <p className="hint">
+diff --git a/src/components/StateView.tsx b/src/components/StateView.tsx
+index 08c2634..d87654a 100644
+--- a/src/components/StateView.tsx
++++ b/src/components/StateView.tsx
+@@ -6,6 +6,7 @@
+  * panel the reader has to go looking for.
+  */
+ import type { ConflictRecord, ContributionKind, ContributionRecord } from '../lib/api'
++import { MoveHorizontal } from 'lucide-react'
+ 
+ const ORDER: ContributionKind[] = ['question', 'approach', 'evidence', 'assumption', 'contradiction', 'claim', 'synthesis']
+ 
+@@ -70,7 +71,7 @@ export function StateView({
+                   <button className="conflict-side" onClick={() => onSelect(conflict.leftObjectId)}>
+                     {byId.get(conflict.leftObjectId)?.label ?? conflict.leftObjectId}
+                   </button>
+-                  <span className="conflict-vs">↔</span>
++                  <span className="conflict-vs"><MoveHorizontal size={14} aria-hidden="true" /></span>
+                   <button className="conflict-side" onClick={() => onSelect(conflict.rightObjectId)}>
+                     {byId.get(conflict.rightObjectId)?.label ?? conflict.rightObjectId}
+                   </button>
+-- 
+2.43.0
+

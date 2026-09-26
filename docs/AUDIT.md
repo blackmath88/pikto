@@ -22,6 +22,10 @@ Full output: [audit-opendata-explorer.json](audit-opendata-explorer.json)
 
 That makes it one status family, which is what the contact sheet in [WORKFLOW.md](WORKFLOW.md) proposes.
 
+## Since v0.5
+- Glyphs are classified as icon or typography by position (see [LIBRARY.md](LIBRARY.md)). On opendata-explorer that drops the count from 24 to 21. The 3 dropped are the prose arrows.
+- Named imports from icon libraries are inventoried (`libraries`), with issues for two families at once and for glyphs beside a library.
+
 ## Limits
 - Meaning is inferred with regexes, and some sites come back as `?`. The LLM fills those in from context (the *reading* step).
 - It only finds glyphs in template strings and markup. Icon fonts and CSS `content:` aren't covered yet.

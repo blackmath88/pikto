@@ -96,3 +96,43 @@ test('apply: module, call sites by lexical context, import alias, provenance, DE
   assert.equal(failed?.ok, false, 'a new glyph is drift and exits 1');
   assert.equal(failed.drift[0].glyph, '✓');
 });
+
+const react = path.join(here, 'fixtures', 'react-repo');
+
+test('audit: prose arrows are typography; library imports are inventoried', () => {
+  const a = run('audit', react, '--full');
+  const kinds = Object.fromEntries(a.uses.map((u) => [`${u.glyph}:${u.line}`, u.why ?? u.kind]));
+  assert.equal(kinds['→:6'], 'connector between operands');
+  assert.equal(kinds['↗:11'], 'icon', 'trailing marker after a label');
+  assert.equal(kinds['↔:12'], 'icon', 'alone in its element');
+  assert.equal(kinds['↗:7'], 'icon', 'whole string literal');
+  const [lib] = a.libraries;
+  assert.equal(lib.package, 'lucide-react');
+  assert.equal(lib.components.RefreshCw.id, 'lucide:refresh-cw');
+  assert.deepEqual(lib.sizes, { 15: 1, 16: 1 });
+  assert.ok(a.issues.some((i) => i.includes('already import lucide-react')));
+});
+
+test('profile + apply: an imported library is the convention and the write target', () => {
+  const pf = path.join(tmp, 'react-profile.json');
+  fs.writeFileSync(pf, JSON.stringify(run('profile', react)));
+  const t = JSON.parse(fs.readFileSync(pf, 'utf8')).icon_system;
+  assert.equal(t.library.package, 'lucide-react');
+  assert.equal(t.stroke_width, 2);
+  assert.deepEqual(t.families, ['lucide']);
+  const work = path.join(tmp, 'react-apply');
+  fs.cpSync(react, work, { recursive: true });
+  const r = run('apply', work, '--profile', pf, '--decision', path.join(here, 'fixtures', 'decision-react.json'));
+  assert.equal(r.target, 'library');
+  assert.ok(!r.files.includes('src/ui/icons.ts'), 'no generated module next to a library');
+  const app = fs.readFileSync(path.join(work, 'src/App.tsx'), 'utf8');
+  assert.match(app, /^import \{ Sparkles, RefreshCw, ArrowUpRight, MoveHorizontal \} from 'lucide-react'$/m, 'merged into the existing import; unsorted stays unsorted');
+  assert.match(app, /Think with my AI <ArrowUpRight size=\{14\} aria-hidden="true" \/>/);
+  assert.match(app, /<span className="vs"><MoveHorizontal size=\{14\} aria-hidden="true" \/><\/span>/);
+  assert.match(app, /const hint = '↗'/, 'a string cannot hold a component: left for the agent');
+  assert.ok(r.left.some((l) => l.at === 'src/App.tsx:7' && /string cannot hold a component/.test(l.reason)));
+  assert.match(app, /`\$\{a\} → \$\{b\}`/, 'prose arrow untouched');
+  const prov = JSON.parse(fs.readFileSync(path.join(work, '.pikto/provenance.json'), 'utf8')).icons;
+  assert.equal(prov[0].component, 'ArrowUpRight');
+  assert.equal(prov[0].package_version, '^0.468.0');
+});
