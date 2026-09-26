@@ -1,0 +1,538 @@
+From f6592d14ba4ec09b1367f081d9c22cf24ac47cad Mon Sep 17 00:00:00 2001
+From: pikto <noreply@anthropic.com>
+Date: Sat, 26 Sep 2026 12:29:59 +0000
+Subject: [PATCH] Icons: replace Unicode glyphs with one Phosphor-based SVG
+ vocabulary
+
+Generated with pikto apply (decision and contact sheet in blackmath88/pikto docs/).
+- src/ui/icons.ts: icon(name, size) returns an SVG string, colour from currentColor
+- rail (18px), evidence status as one circle family, external links
+- panels.ts coverage column restructured by hand so the icon is not HTML-escaped
+- DESIGN.md: ## Iconography; .pikto/provenance.json; .pikto/audit.json for pikto audit --check
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01C4YymvnQ8fu28LVdf3r7fR
+---
+ .pikto/audit.json      |  25 ++++
+ .pikto/provenance.json | 290 +++++++++++++++++++++++++++++++++++++++++
+ DESIGN.md              |  21 +++
+ src/main.ts            |  19 +--
+ src/ui/icons.ts        |  31 +++++
+ src/ui/panels.ts       |   9 +-
+ src/ui/result.ts       |   3 +-
+ 7 files changed, 384 insertions(+), 14 deletions(-)
+ create mode 100644 .pikto/audit.json
+ create mode 100644 .pikto/provenance.json
+ create mode 100644 src/ui/icons.ts
+
+diff --git a/.pikto/audit.json b/.pikto/audit.json
+new file mode 100644
+index 0000000..c984043
+--- /dev/null
++++ b/.pikto/audit.json
+@@ -0,0 +1,25 @@
++{
++  "module": "src/ui/icons.ts",
++  "allow": [
++    {
++      "file": "src/ui/graph.ts",
++      "glyph": "✓",
++      "reason": "SVG <text> inside the D3 zoom-add circle; not HTML, set with .text()"
++    },
++    {
++      "file": "src/ui/panels.ts",
++      "glyph": "→",
++      "reason": "typographic: date range in running text"
++    },
++    {
++      "file": "src/ui/panels.ts",
++      "glyph": "→",
++      "reason": "typographic: date range in running text"
++    },
++    {
++      "file": "src/compatibility.ts",
++      "glyph": "↔",
++      "reason": "typographic: key pair in a sentence"
++    }
++  ]
++}
+diff --git a/.pikto/provenance.json b/.pikto/provenance.json
+new file mode 100644
+index 0000000..fd5f140
+--- /dev/null
++++ b/.pikto/provenance.json
+@@ -0,0 +1,290 @@
++{
++  "icons": [
++    {
++      "name": "discover",
++      "source": "ph:magnifying-glass",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "Discover stage",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Search is the literal action of this stage.",
++      "permission": "DESIGN.md: side rail, 18px stroke glyphs; ⌕ was a font-dependent approximation.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "build",
++      "source": "ph:stack",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "Build stage",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Composing layers of evidence into a plan; blueprint is too busy at 18px.",
++      "permission": "⌘ is the Mac Command key, not Build.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "materialize",
++      "source": "ph:cube",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "Materialize stage",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "The plan becomes a concrete object.",
++      "permission": "▣ in the rail; DESIGN.md 1–1.5px stroke.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "legend",
++      "source": "ph:info",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "Provenance legend",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Opens an explanation, not a question.",
++      "permission": "legendBtn title: What the provenance tags mean.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "confirmed",
++      "source": "ph:check-circle",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "confirmed / covered / selected / locally available",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Circle family: frame = evidence state, mark = verdict.",
++      "permission": "✓ covered five positive states in three files.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "partial",
++      "source": "ph:circle-half",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "partial claim / locally weak source",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Half-covered.",
++      "permission": "△ meant both partial and available; split per audit.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "available",
++      "source": "ph:circle-dashed",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "available, not taken up",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "There but not yet in use; the dashed frame is lighter on purpose.",
++      "permission": "○ and △ both drew available.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "rejected",
++      "source": "ph:x-circle",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "rejected / missing",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Same frame, crossing mark.",
++      "permission": "✕ and × both drew missing.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "unresolved",
++      "source": "ph:question",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "unresolved claim",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Phosphor's question sits in the same circle frame.",
++      "permission": "result.ts '?' for unresolved.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "proposed",
++      "source": "ph:plus-circle",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "proposed claim / candidate source",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Something to add; joins the circle family.",
++      "permission": "'+' for proposed claims and national candidates.",
++      "added": "2026-09-26"
++    },
++    {
++      "name": "external",
++      "source": "ph:arrow-up-right",
++      "set": "Phosphor",
++      "version": "2.1.1",
++      "license": {
++        "title": "MIT",
++        "spdx": "MIT",
++        "url": "https://github.com/phosphor-icons/core/blob/main/LICENSE"
++      },
++      "author": {
++        "name": "Phosphor Icons",
++        "url": "https://github.com/phosphor-icons/core"
++      },
++      "via": "@iconify-json/ph@1.2.2",
++      "meaning": "opens an external source",
++      "operations": [
++        "scale 256→24 grid (×0.0938)",
++        "fill shapes: drop hard-coded colour, add stroke=\"none\" (repo convention)",
++        "remove colour attributes (colour inherited from <Icon>)",
++        "svgo (preset-default; keep primitives, keep per-shape attributes)"
++      ],
++      "reading": "Leaves the app.",
++      "permission": "↗ after link text.",
++      "added": "2026-09-26"
++    }
++  ]
++}
+diff --git a/DESIGN.md b/DESIGN.md
+index 0618b5f..052c355 100644
+--- a/DESIGN.md
++++ b/DESIGN.md
+@@ -138,3 +138,24 @@ Avoid heavy shadows. Use tonal layering, subtle blur and 1px borders (`#d9d5cc`)
+ - Side rail: 18px stroke glyphs in 48×48px hit targets.
+ - Status badges: `accent-wash` for positive states; warn/danger tints when semantic.
+ - Iconography: geometric, minimalist, consistent 1–1.5px stroke.
++
++## Iconography
++
++- Source: Phosphor (MIT), adapted by pikto to a 24 grid. Module: `src/ui/icons.ts`, `icon(name, size)` returns an SVG string; colour is `currentColor`.
++- Rail icons render at 18px in the 48×48 hit target; status icons at 12–14px; Phosphor Regular measures ≈1.1px stroke at 18px, inside the 1–1.5px rule.
++- Evidence status is one family: every state shares the circle frame and differs only in its inner mark (check, half, dashed, cross, question, plus). Tone comes from the state class, never from the icon.
++- No Unicode glyphs as icons. Add icons with `pikto add`/`pikto apply`; `pikto audit --check` fails on new glyphs. Provenance: `.pikto/provenance.json`.
++
++| Name | Meaning | Source |
++|---|---|---|
++| `discover` | Discover stage | `ph:magnifying-glass` |
++| `build` | Build stage | `ph:stack` |
++| `materialize` | Materialize stage | `ph:cube` |
++| `legend` | Provenance legend | `ph:info` |
++| `confirmed` | confirmed / covered / selected / locally available | `ph:check-circle` |
++| `partial` | partial claim / locally weak source | `ph:circle-half` |
++| `available` | available, not taken up | `ph:circle-dashed` |
++| `rejected` | rejected / missing | `ph:x-circle` |
++| `unresolved` | unresolved claim | `ph:question` |
++| `proposed` | proposed claim / candidate source | `ph:plus-circle` |
++| `external` | opens an external source | `ph:arrow-up-right` |
+diff --git a/src/main.ts b/src/main.ts
+index 17a39be..3371664 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -41,6 +41,7 @@ import type {
+   EvidencePlan,
+   UseCaseIntent,
+ } from './types';
++import { icon } from './ui/icons';
+ 
+ const DEFAULT_QUERY = BENCHMARK_USE_CASES[0].prompt;
+ 
+@@ -95,11 +96,11 @@ app.innerHTML = `
+   </header>
+   <div class="shell">
+     <nav class="rail">
+-      <button class="rail-btn active" id="stageDiscover"><span class="rail-icon">⌕</span><span>Discover</span></button>
+-      <button class="rail-btn" id="stageCompose" title="Build from the evidence plan"><span class="rail-icon">⌘</span><span>Build</span></button>
+-      <button class="rail-btn" disabled title="Milestone 5"><span class="rail-icon">▣</span><span>Materialize</span></button>
++      <button class="rail-btn active" id="stageDiscover"><span class="rail-icon">${icon('discover', 18)}</span><span>Discover</span></button>
++      <button class="rail-btn" id="stageCompose" title="Build from the evidence plan"><span class="rail-icon">${icon('build', 18)}</span><span>Build</span></button>
++      <button class="rail-btn" disabled title="Milestone 5"><span class="rail-icon">${icon('materialize', 18)}</span><span>Materialize</span></button>
+       <div class="rail-spacer"></div>
+-      <button class="rail-btn" id="legendBtn" title="What the provenance tags mean"><span class="rail-icon">?</span></button>
++      <button class="rail-btn" id="legendBtn" title="What the provenance tags mean"><span class="rail-icon">${icon('legend', 18)}</span></button>
+     </nav>
+     <main class="main">
+       <div class="canvas-toolbar">
+@@ -361,22 +362,22 @@ function renderTrustedEvidence(resolution: EvidenceResolution): string {
+     .filter((item, index, all) => all.findIndex(other => other.resourceId === item.resourceId && other.roleId === item.roleId) === index);
+   const localRows = local.length ? local.map(role => {
+     const dataset = catalog.datasets.find(item => item.id === role.localDatasetId);
+-    return `<li><span class="source-state ${role.localStatus === 'locally_available' ? 'ready' : 'weak'}">${role.localStatus === 'locally_available' ? '✓' : '△'}</span><b>${escapeHtml(role.label)}</b><span>${escapeHtml(dataset?.title ?? role.localReason)}</span></li>`;
++    return `<li><span class="source-state ${role.localStatus === 'locally_available' ? 'ready' : 'weak'}">${role.localStatus === 'locally_available' ? icon('confirmed', 14) : icon('partial', 14)}</span><b>${escapeHtml(role.label)}</b><span>${escapeHtml(dataset?.title ?? role.localReason)}</span></li>`;
+   }).join('') : '<li><span class="source-state">—</span><span>No local role is resolved yet.</span></li>';
+   const externalRows = external.length ? external.map(candidate => {
+     const resource = resourceById(candidate.resourceId)!;
+     const provider = providerById(candidate.providerId)!;
+     const status = candidate.status.replace('_', ' ');
+-    return `<li><span class="source-state candidate">+</span><div><b>${escapeHtml(resource.label)}</b><span>${escapeHtml(provider.label)} · national · ${escapeHtml(status)} · not validated</span><small>Fills: ${escapeHtml(candidate.roleId.replaceAll('_', ' '))}</small><p>${escapeHtml(candidate.reason)}</p><details><summary>Technical source details</summary><p>Access: ${escapeHtml(resource.accessType)} · ${escapeHtml(resource.formats.join(', '))}</p><p>${escapeHtml(resource.notes.join(' '))}</p><a href="${escapeHtml(resource.catalogueUrl)}" target="_blank" rel="noreferrer">Official source</a></details></div></li>`;
++    return `<li><span class="source-state candidate">${icon('proposed', 14)}</span><div><b>${escapeHtml(resource.label)}</b><span>${escapeHtml(provider.label)} · national · ${escapeHtml(status)} · not validated</span><small>Fills: ${escapeHtml(candidate.roleId.replaceAll('_', ' '))}</small><p>${escapeHtml(candidate.reason)}</p><details><summary>Technical source details</summary><p>Access: ${escapeHtml(resource.accessType)} · ${escapeHtml(resource.formats.join(', '))}</p><p>${escapeHtml(resource.notes.join(' '))}</p><a href="${escapeHtml(resource.catalogueUrl)}" target="_blank" rel="noreferrer">Official source</a></details></div></li>`;
+   }).join('') : '<li><span class="source-state">—</span><span>No national gap-fill is needed.</span></li>';
+   const missingRows = resolution.unresolved.length
+-    ? resolution.unresolved.map(role => `<li><span class="source-state missing">×</span><b>${escapeHtml(role.label)}</b><span>${escapeHtml(role.localReason)}</span></li>`).join('')
+-    : '<li><span class="source-state ready">✓</span><span>No unresolved roles without a known source.</span></li>';
++    ? resolution.unresolved.map(role => `<li><span class="source-state missing">${icon('rejected', 14)}</span><b>${escapeHtml(role.label)}</b><span>${escapeHtml(role.localReason)}</span></li>`).join('')
++    : '<li><span class="source-state ready">' + icon('confirmed', 14) + '</span><span>No unresolved roles without a known source.</span></li>';
+   return `<section class="trusted-evidence"><div><span class="eyebrow">Local Basel evidence</span><ul>${localRows}</ul></div><div><span class="eyebrow">Swiss public data · proposed gap-fill</span><ul>${externalRows}</ul></div><div><span class="eyebrow">Still missing</span><ul>${missingRows}</ul></div></section>`;
+ }
+ 
+ function renderBuildProposal(spec: RepresentationSpec, recommendations: RepresentationSpec[], covered: number, totalRoles: number, missing: number, next: string, currentAnalysis: WorkspaceAnalysis | null, executable: Set<string>): string {
+-  const useRows = spec.inputs.map(input => `<li class="input-${input.status}"><span>${input.status === 'selected' ? '✓' : input.status === 'available' ? '△' : '✕'}</span>${escapeHtml(input.label)}${input.status === 'available' ? ' · available, not selected' : input.status === 'external' ? ' · external' : ''}</li>`).join('');
++  const useRows = spec.inputs.map(input => `<li class="input-${input.status}"><span>${input.status === 'selected' ? icon('confirmed', 12) : input.status === 'available' ? icon('available', 12) : icon('rejected', 12)}</span>${escapeHtml(input.label)}${input.status === 'available' ? ' · available, not selected' : input.status === 'external' ? ' · external' : ''}</li>`).join('');
+   const needsValidation = spec.requiredAssessmentIds.filter(id => !executions.has(id));
+   return `<section class="build-proposal">
+     <div class="build-kicker">Build · proposed view</div><div class="build-question">${escapeHtml(query)}</div>
+diff --git a/src/ui/icons.ts b/src/ui/icons.ts
+new file mode 100644
+index 0000000..e972c80
+--- /dev/null
++++ b/src/ui/icons.ts
+@@ -0,0 +1,31 @@
++// Generated by pikto apply. Do not edit path data by hand: sources, licenses and operations are in .pikto/provenance.json.
++// Colour comes from currentColor, so existing state classes (.source-state.ready, .claim-rejected, …) keep working.
++const PATHS = {
++  // ph:magnifying-glass (Phosphor 2.1.1, MIT): Discover stage
++  'discover': `<path stroke="none" d="m21.53 20.47-4.69-4.69a8.26 8.26 0 1 0-1.06 1.06l4.69 4.69a.75.75 0 0 0 1.06-1.06M3.75 10.5a6.75 6.75 0 1 1 6.75 6.75 6.76 6.76 0 0 1-6.75-6.75"/>`,
++  // ph:stack (Phosphor 2.1.1, MIT): Build stage
++  'build': `<path stroke="none" d="M21.65 16.13a.75.75 0 0 1-.27 1.02l-9 5.25a.75.75 0 0 1-.76 0l-9-5.25a.75.75 0 0 1 .76-1.3L12 20.88l8.63-5.03a.75.75 0 0 1 1.02.27m-1.02-4.77L12 16.38l-8.62-5.03a.75.75 0 0 0-.75 1.3l9 5.25a.75.75 0 0 0 .75 0l9-5.25a.75.75 0 1 0-.75-1.3M2.25 7.5a.75.75 0 0 1 .38-.65l8.99-5.25a.75.75 0 0 1 .76 0l9 5.25a.75.75 0 0 1 0 1.3l-9 5.25a.75.75 0 0 1-.76 0l-9-5.25a.75.75 0 0 1-.37-.65m2.24 0L12 11.88l7.51-4.38L12 3.12Z"/>`,
++  // ph:cube (Phosphor 2.1.1, MIT): Materialize stage
++  'materialize': `<path stroke="none" d="m20.97 6.2-8.25-4.51a1.49 1.49 0 0 0-1.44 0L3.03 6.2a1.5 1.5 0 0 0-.78 1.32v8.96a1.5 1.5 0 0 0 .78 1.31l8.25 4.52a1.49 1.49 0 0 0 1.44 0l8.25-4.52a1.5 1.5 0 0 0 .78-1.31V7.52a1.5 1.5 0 0 0-.78-1.32M12 3l7.53 4.13L12 11.25 4.47 7.13ZM3.75 8.44l7.5 4.1v8.04l-7.5-4.1Zm9 12.14v-8.03l7.5-4.11v8.04Z"/>`,
++  // ph:info (Phosphor 2.1.1, MIT): Provenance legend
++  'legend': `<path stroke="none" d="M12 2.25A9.75 9.75 0 1 0 21.75 12 9.76 9.76 0 0 0 12 2.25m0 18A8.25 8.25 0 1 1 20.25 12 8.26 8.26 0 0 1 12 20.25m1.5-3.75a.75.75 0 0 1-.75.75 1.5 1.5 0 0 1-1.5-1.5V12a.75.75 0 0 1 0-1.5 1.5 1.5 0 0 1 1.5 1.5v3.75a.75.75 0 0 1 .75.75m-3-8.63A1.13 1.13 0 1 1 11.63 9a1.13 1.13 0 0 1-1.13-1.12"/>`,
++  // ph:check-circle (Phosphor 2.1.1, MIT): confirmed / covered / selected / locally available
++  'confirmed': `<path stroke="none" d="M16.28 9.22a.75.75 0 0 1 0 1.06l-5.25 5.25a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 0 1 1.06-1.06l1.72 1.72 4.72-4.72a.75.75 0 0 1 1.06 0M21.75 12A9.75 9.75 0 1 1 12 2.25 9.76 9.76 0 0 1 21.75 12m-1.5 0A8.25 8.25 0 1 0 12 20.25 8.26 8.26 0 0 0 20.25 12"/>`,
++  // ph:circle-half (Phosphor 2.1.1, MIT): partial claim / locally weak source
++  'partial': `<path stroke="none" d="M12 2.25A9.75 9.75 0 1 0 21.75 12 9.76 9.76 0 0 0 12 2.25m.75 1.53a8 8 0 0 1 1.5.29v15.87a8 8 0 0 1-1.5.28Zm3 .87a8.2 8.2 0 0 1 1.5.99v12.72a8.2 8.2 0 0 1-1.5.99ZM3.75 12a8.26 8.26 0 0 1 7.5-8.22v16.44A8.26 8.26 0 0 1 3.75 12m15 4.74V7.26a8.23 8.23 0 0 1 0 9.48"/>`,
++  // ph:circle-dashed (Phosphor 2.1.1, MIT): available, not taken up
++  'available': `<path stroke="none" d="M9.02 3.47a.75.75 0 0 1 .54-.91 9.76 9.76 0 0 1 4.88 0 .75.75 0 0 1-.19 1.47.8.8 0 0 1-.19-.02 8.26 8.26 0 0 0-4.12 0 .75.75 0 0 1-.92-.54m-3.98 1.7a9.75 9.75 0 0 0-2.43 4.22.75.75 0 0 0 1.44.4 8.25 8.25 0 0 1 2.06-3.57.75.75 0 0 0-1.07-1.05m-.99 9.04a.75.75 0 1 0-1.44.4 9.76 9.76 0 0 0 2.43 4.22.75.75 0 0 0 1.07-1.05 8.26 8.26 0 0 1-2.06-3.57m10.01 5.78a8.25 8.25 0 0 1-4.12 0 .75.75 0 1 0-.38 1.45 9.76 9.76 0 0 0 4.88 0 .75.75 0 0 0-.38-1.45m6.81-6.3a.75.75 0 0 0-.92.52 8.24 8.24 0 0 1-2.06 3.57.75.75 0 1 0 1.07 1.05 9.75 9.75 0 0 0 2.44-4.22.75.75 0 0 0-.53-.92m-.92-3.9a.75.75 0 0 0 1.44-.4 9.75 9.75 0 0 0-2.43-4.22.75.75 0 1 0-1.07 1.06 8.25 8.25 0 0 1 2.06 3.56"/>`,
++  // ph:x-circle (Phosphor 2.1.1, MIT): rejected / missing
++  'rejected': `<path stroke="none" d="M15.53 9.53 13.06 12l2.47 2.47a.75.75 0 0 1-1.06 1.06L12 13.06l-2.47 2.47a.75.75 0 0 1-1.06-1.06L10.94 12 8.47 9.53a.75.75 0 0 1 1.06-1.06L12 10.94l2.47-2.47a.75.75 0 0 1 1.06 1.06M21.75 12A9.75 9.75 0 1 1 12 2.25 9.76 9.76 0 0 1 21.75 12m-1.5 0A8.25 8.25 0 1 0 12 20.25 8.26 8.26 0 0 0 20.25 12"/>`,
++  // ph:question (Phosphor 2.1.1, MIT): unresolved claim
++  'unresolved': `<path stroke="none" d="M13.13 16.88A1.13 1.13 0 1 1 12 15.75a1.13 1.13 0 0 1 1.12 1.13M12 6.75c-2.07 0-3.75 1.51-3.75 3.38v.37a.75.75 0 0 0 1.5 0v-.37c0-1.03 1.01-1.88 2.25-1.88s2.25.84 2.25 1.88S13.24 12.01 12 12a.75.75 0 0 0-.75.75v.75a.75.75 0 0 0 1.5 0v-.07c1.71-.31 3-1.68 3-3.31 0-1.86-1.68-3.38-3.75-3.37M21.75 12A9.75 9.75 0 1 1 12 2.25 9.76 9.76 0 0 1 21.75 12m-1.5 0A8.25 8.25 0 1 0 12 20.25 8.26 8.26 0 0 0 20.25 12"/>`,
++  // ph:plus-circle (Phosphor 2.1.1, MIT): proposed claim / candidate source
++  'proposed': `<path stroke="none" d="M12 2.25A9.75 9.75 0 1 0 21.75 12 9.76 9.76 0 0 0 12 2.25m0 18A8.25 8.25 0 1 1 20.25 12 8.26 8.26 0 0 1 12 20.25M16.5 12a.75.75 0 0 1-.75.75h-3v3a.75.75 0 0 1-1.5 0v-3h-3a.75.75 0 0 1 0-1.5h3v-3a.75.75 0 0 1 1.5 0v3h3a.75.75 0 0 1 .75.75"/>`,
++  // ph:arrow-up-right (Phosphor 2.1.1, MIT): opens an external source
++  'external': `<path stroke="none" d="M18.75 6v9.75a.75.75 0 0 1-1.5 0V7.81L6.53 18.53a.75.75 0 0 1-1.06-1.06L16.19 6.75H8.25a.75.75 0 0 1 0-1.5H18a.75.75 0 0 1 .75.75"/>`,
++} as const;
++
++export type IconName = keyof typeof PATHS;
++
++export const icon = (name: IconName, size = 16): string =>
++  `<svg class="icon icon-${name}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor" stroke="currentColor" aria-hidden="true" focusable="false" style="vertical-align:-0.125em;flex:none">${PATHS[name]}</svg>`;
+diff --git a/src/ui/panels.ts b/src/ui/panels.ts
+index 18db0ec..e0dc48f 100644
+--- a/src/ui/panels.ts
++++ b/src/ui/panels.ts
+@@ -25,6 +25,7 @@ import {
+   provenanceTag,
+   truncate,
+ } from './dom';
++import { icon } from './icons';
+ 
+ const EVIDENCE_CLASS_LABEL: Record<string, string> = {
+   direct: 'direct evidence',
+@@ -188,7 +189,7 @@ export function renderDatasetDetail(dataset: DatasetRecord, structure?: DatasetS
+     'Dataset detail',
+     `<div class="dataset-detail"><div class="detail-group"><span class="eyebrow">Overview</span><h3>${escapeHtml(dataset.title)}</h3>
+        <p>${escapeHtml(dataset.description || 'No catalogue description published.')}</p>
+-       <a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noreferrer">Open source dataset ↗</a></div>
++       <a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noreferrer">Open source dataset ${icon('external', 12)}</a></div>
+        <div class="detail-group"><span class="eyebrow">Catalogue</span>
+        <table class="kv">${rows
+          .map(([key, value]) => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value)}</td></tr>`)
+@@ -199,7 +200,7 @@ export function renderDatasetDetail(dataset: DatasetRecord, structure?: DatasetS
+          <tr><th>Fields</th><td>${escapeHtml(formatCount(dataset.fieldCount))}</td></tr>
+        </table>
+        <div class="prov-row">${provenanceTag('source', 'catalogue metadata')}</div>
+-       <div class="detail-links"><a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noreferrer">Open source dataset ↗</a>${dataset.licenseUrl ? ` <a href="${escapeHtml(dataset.licenseUrl)}" target="_blank" rel="noreferrer">Licence ↗</a>` : ''}</div></div>
++       <div class="detail-links"><a href="${escapeHtml(dataset.sourceUrl)}" target="_blank" rel="noreferrer">Open source dataset ${icon('external', 12)}</a>${dataset.licenseUrl ? ` <a href="${escapeHtml(dataset.licenseUrl)}" target="_blank" rel="noreferrer">Licence ${icon('external', 12)}</a>` : ''}</div></div>
+        ${match ? `<div class="detail-group relevance-detail"><span class="eyebrow">Relevance · system inferred</span><div class="badges"><span class="badge badge-${escapeHtml(match.evidenceClass)}">${escapeHtml(EVIDENCE_CLASS_LABEL[match.evidenceClass])}</span>${match.roleIds.map(id => `<span class="badge badge-role">${escapeHtml(plan?.roles.find(role => role.id === id)?.label ?? id)}</span>`).join('')}</div><p>${escapeHtml(match.relevance.explanation)}</p>${provenanceTag('system', 'deterministic ranking')}</div>` : ''}
+      </div>
+      ${structure ? renderStructure(structure) : ''}`,
+@@ -342,8 +343,8 @@ export function renderEvidencePlan(plan: EvidencePlan, datasets: DatasetRecord[]
+   const summaryRows = plan.roles.map(role => {
+     const dataset = role.datasetId ? byId.get(role.datasetId) : undefined;
+     const covered = Boolean(dataset && workspace.has(dataset.id));
+-    const status = covered ? '✓ Covered' : dataset ? '○ Available' : role.gap?.kind === 'not_in_catalogue' ? '✕ External' : '✕ Missing';
+-    return `<tr class="role-dataset" ${dataset ? `data-id="${escapeHtml(dataset.id)}"` : ''}><td>${escapeHtml(role.label)}</td><td class="${covered ? 'role-covered' : 'role-uncovered'}">${escapeHtml(status)}</td><td>${escapeHtml(dataset?.title ?? role.gap?.suggestion ?? 'No dataset')}</td>${dataset ? `<td><button class="small-btn ${covered ? 'added' : ''} role-add">${covered ? 'Selected' : 'Add'}</button></td>` : '<td></td>'}</tr>`;
++    const [mark, status] = covered ? ['confirmed', 'Covered'] as const : dataset ? ['available', 'Available'] as const : ['rejected', role.gap?.kind === 'not_in_catalogue' ? 'External' : 'Missing'] as const;
++    return `<tr class="role-dataset" ${dataset ? `data-id="${escapeHtml(dataset.id)}"` : ''}><td>${escapeHtml(role.label)}</td><td class="${covered ? 'role-covered' : 'role-uncovered'}">${icon(mark, 12)} ${escapeHtml(status)}</td><td>${escapeHtml(dataset?.title ?? role.gap?.suggestion ?? 'No dataset')}</td>${dataset ? `<td><button class="small-btn ${covered ? 'added' : ''} role-add">${covered ? 'Selected' : 'Add'}</button></td>` : '<td></td>'}</tr>`;
+   }).join('');
+   return `
+     <section class="workbench-section">
+diff --git a/src/ui/result.ts b/src/ui/result.ts
+index b738778..c857f66 100644
+--- a/src/ui/result.ts
++++ b/src/ui/result.ts
+@@ -1,6 +1,7 @@
+ import type { Map as MapLibreMap } from 'maplibre-gl';
+ import type { RepresentationResult } from '../renderers';
+ import { escapeHtml } from './dom';
++import { icon as iconSvg } from './icons';
+ 
+ const COLORS = ['#2d5b49', '#8a5f2d', '#334155', '#7f443a'];
+ 
+@@ -75,4 +76,4 @@ function renderSources(result: RepresentationResult): string {
+   return `<details open><summary>Sources and provenance</summary><ul class="result-sources">${result.sources.map(source => `<li><b>${escapeHtml(source.label)}</b><span>${escapeHtml(source.provider)} · ${escapeHtml(source.scope)} · ${escapeHtml(source.state)}${source.timestamp ? ` · ${escapeHtml(source.timestamp)}` : ''}</span><a href="${escapeHtml(source.sourceUrl)}" target="_blank" rel="noreferrer">Source</a></li>`).join('')}</ul></details>`;
+ }
+ 
+-const icon = (status: string): string => status === 'confirmed' ? '✓' : status === 'rejected' ? '✕' : status === 'partial' ? '△' : status === 'unresolved' ? '?' : '+';
++const icon = (status: string): string => status === 'confirmed' ? iconSvg('confirmed', 12) : status === 'rejected' ? iconSvg('rejected', 12) : status === 'partial' ? iconSvg('partial', 12) : status === 'unresolved' ? iconSvg('unresolved', 12) : iconSvg('proposed', 12);
+-- 
+2.43.0
+

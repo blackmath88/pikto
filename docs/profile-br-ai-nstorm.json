@@ -1,0 +1,52 @@
+{
+  "repo": "/tmp/claude-0/repos/br-ai-nstorm",
+  "icon_system": {
+    "families": [
+      "lucide"
+    ],
+    "registry": null,
+    "component": null,
+    "library": {
+      "package": "lucide-react",
+      "prefix": "lucide",
+      "components": 7,
+      "sizes": {
+        "14": 1,
+        "15": 5,
+        "16": 1
+      }
+    },
+    "grid": 24,
+    "grid_consistency": 1,
+    "stroke_width": 2,
+    "stroke_ratio": 0.0833,
+    "stroke_width_at_24": 2,
+    "linecap": "round",
+    "linejoin": "round",
+    "construction": {
+      "stroke_shapes": 1,
+      "fill_shapes": 0,
+      "dominant": "stroke"
+    },
+    "fill_convention": "currentColor",
+    "render_sizes": [
+      "14",
+      "15",
+      "16"
+    ],
+    "stroke_px_range": null,
+    "render_px": null,
+    "stroke_range": null,
+    "source": "grammar of lucide-react (imported library)"
+  },
+  "tokens": {
+    "accent": {},
+    "radius": {},
+    "fonts": {}
+  },
+  "evidence": {
+    "files_scanned": 57,
+    "stroke_samples": 1,
+    "shapes_sampled": 1
+  }
+}

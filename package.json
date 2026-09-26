@@ -1,6 +1,6 @@
 {
   "name": "pikto",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "keywords": [],
   "author": "",
   "license": "MIT",
@@ -13,5 +13,13 @@
   "type": "module",
   "bin": {
     "pikto": "bin/pikto.mjs"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.137",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify-json/tabler": "^1.2.40"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
   }
 }

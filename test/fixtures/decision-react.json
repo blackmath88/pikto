@@ -1,0 +1,4 @@
+{ "icons": {
+    "handoff": { "source": "lucide:arrow-up-right", "meaning": "leaves the room" },
+    "tension": { "source": "lucide:move-horizontal", "meaning": "in conflict" } },
+  "replace": [ { "glyph": "↗", "icon": "handoff", "size": 14 }, { "glyph": "↔", "icon": "tension", "size": 14 } ] }

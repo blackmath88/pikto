@@ -1,0 +1,28 @@
+{
+  "title": "Topic category icons: opendata-explorer Discover",
+  "font": "Inter, system-ui, sans-serif",
+  "roles": [
+    {
+      "role": "Topic categories (Atlas, Topic lens, depth 1)",
+      "note": "Drawn on the rim of each top-level circle in the circle-pack, 18px in the category's own green. A new family beside the rail and status icons: same Phosphor grammar, no shared frame. Four are visible with the cached catalogue; the live catalogue can show all eleven.",
+      "context": { "size": 18, "box": 40, "radius": 20, "color": "var(--primary2)", "background": "#eceee7" },
+      "items": [
+        { "meaning": "Environment & Climate", "today": "—", "candidates": ["ph:leaf", "ph:plant", "ph:tree"], "reading": "The organic part, not a place: a leaf, so Public Space can keep the park." },
+        { "meaning": "Mobility & Transport", "today": "—", "candidates": ["ph:tram", "ph:bicycle", "ph:path"], "reading": "Metonymy for Basel: the BVB tram, not a generic car." },
+        { "meaning": "People & Society", "today": "—", "candidates": ["ph:users-three", "ph:users"], "reading": "A group, not one person." },
+        { "meaning": "Built City & Infrastructure", "today": "—", "candidates": ["ph:buildings", "ph:crane", "ph:city"], "reading": "The built fabric; the crane only covers construction." },
+        { "meaning": "Public Space & Leisure", "today": "—", "candidates": ["ph:park", "ph:tree-evergreen"], "reading": "A place you go to, distinct from the leaf of Environment." },
+        { "meaning": "Health", "today": "—", "candidates": ["ph:heartbeat", "ph:first-aid"], "reading": "A vital sign; first-aid reads as emergency." },
+        { "meaning": "Education", "today": "—", "candidates": ["ph:graduation-cap", "ph:book-open"], "reading": "The institution; a book overlaps with culture/library." },
+        { "meaning": "Culture", "today": "—", "candidates": ["ph:mask-happy", "ph:paint-brush-broad"], "reading": "Theatre and events; a museum column would be confused with Government's bank." },
+        { "meaning": "Government & Economy", "today": "—", "candidates": ["ph:bank", "ph:scales", "ph:briefcase"], "reading": "The public institution (columns); scales would say justice only." },
+        { "meaning": "Other / review needed", "today": "—", "candidates": ["ph:dots-three-circle", "ph:tag"], "reading": "Not yet sorted; avoids ? which already means unresolved." }
+      ]
+    }
+  ],
+  "questions": [
+    "Topic lens only, or also the Space lens (Point / Line / Polygon / Raster / Non-spatial), which maps naturally to icons?",
+    "Mobility as tram (Basel-specific) or bicycle (the running/cycling use cases)?",
+    "Subcategories (≈40) stay without icons: at that depth icons would be decoration, not recognition. Agreed?"
+  ]
+}

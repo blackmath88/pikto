@@ -1,0 +1,40 @@
+{
+  "icons": {
+    "handoff": {
+      "source": "lucide:arrow-up-right",
+      "meaning": "the action leaves the shared room (export to your AI, private thinking)",
+      "reading": "A trailing marker in the same family as the button's leading icon, one size smaller.",
+      "permission": "↗ sat next to <BrainCircuit size={16} /> from lucide-react in the same button."
+    },
+    "tension": {
+      "source": "lucide:move-horizontal",
+      "meaning": "two claims in conflict",
+      "reading": "The same double-headed arrow ↔, drawn in the family's grammar. arrow-left-right (two stacked opposing arrows) was rejected on the rendered page: it reads as swap, not tension.",
+      "permission": "↔ in .conflict-vs, font-weight 900: a font glyph standing in for an icon."
+    }
+  },
+  "replace": [
+    {
+      "glyph": "↗",
+      "icon": "handoff",
+      "size": 14
+    },
+    {
+      "glyph": "↔",
+      "icon": "tension",
+      "size": 14
+    }
+  ],
+  "skip": [
+    {
+      "at": "br-ai-nstorm-prototype.html:101",
+      "glyph": "↗",
+      "reason": "static HTML prototype outside the React app"
+    },
+    {
+      "at": "br-ai-nstorm-prototype.html:164",
+      "glyph": "↗",
+      "reason": "static HTML prototype outside the React app"
+    }
+  ]
+}
