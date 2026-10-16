@@ -1,4 +1,15 @@
+<!-- BEGIN public-repo-header -->
+<div align="center">
+
 # pikto
+
+<a href="https://github.com/blackmath88/pikto"><img alt="Primary language: JavaScript" src="https://img.shields.io/badge/language-JavaScript-526078?style=flat"></a>
+<a href="https://github.com/blackmath88/pikto/tree/main/docs"><img alt="Documentation" src="https://img.shields.io/badge/docs-guide-16796f?style=flat"></a>
+<a href="https://github.com/blackmath88/pikto/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-737373?style=flat"></a>
+<a href="https://github.com/blackmath88/pikto/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/blackmath88/pikto?style=flat&amp;color=737373"></a>
+
+</div>
+<!-- END public-repo-header -->
 
 Icons that fit the repo they live in, not generic Lucide everywhere.
 
